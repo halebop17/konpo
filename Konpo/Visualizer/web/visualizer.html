@@ -1,0 +1,149 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  #c { display: block; width: 100vw; height: 100vh; }
+  #err { position: fixed; left: 12px; bottom: 12px; color: #f5a623;
+         font: 13px ui-monospace, monospace; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="err"></div>
+<script src="butterchurn.min.js"></script>
+<script src="butterchurnPresets.min.js"></script>
+<script>
+(function () {
+  function fail(m) { document.getElementById('err').textContent = String(m); }
+  const B = window.butterchurn && (window.butterchurn.default || window.butterchurn);
+  const P = window.butterchurnPresets && (window.butterchurnPresets.default || window.butterchurnPresets);
+  if (!B || !P) { fail('Butterchurn failed to load'); return; }
+
+  const canvas = document.getElementById('c');
+
+  // --- Audio feeder (muted ScriptProcessor drains a ring buffer native fills) ---
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const RING = Math.max(8192, ctx.sampleRate | 0);
+  const ring = new Float32Array(RING);
+  let wp = 0, rp = 0, avail = 0;
+  const sp = ctx.createScriptProcessor(1024, 1, 1);
+  sp.onaudioprocess = function (e) {
+    const out = e.outputBuffer.getChannelData(0);
+    for (let i = 0; i < out.length; i++) {
+      if (avail > 0) { out[i] = ring[rp]; rp = (rp + 1) % RING; avail--; } else out[i] = 0;
+    }
+  };
+  const gain = ctx.createGain(); gain.gain.value = 0;
+  sp.connect(gain); gain.connect(ctx.destination);
+  window.pushAudio = function (b64) {
+    if (ctx.state !== 'running') ctx.resume();
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const i16 = new Int16Array(bytes.buffer, 0, bytes.byteLength >> 1);
+    for (let i = 0; i < i16.length; i++) {
+      ring[wp] = i16[i] / 32768; wp = (wp + 1) % RING;
+      if (avail < RING) avail++; else rp = (rp + 1) % RING;
+    }
+  };
+
+  // --- Preset sources: built-in pack, or a user folder of .json (delivered by
+  //     native over the message bridge — no fetch, no in-app conversion). ---
+  let viz = null, mode = 'builtin';
+  let builtinKeys = [], builtinPresets = {}, customNames = [], cache = {}, idx = 0;
+
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+
+  try {
+    viz = B.createVisualizer(ctx, canvas, { width: 1280, height: 720, pixelRatio: 1, textureRatio: 1 });
+    viz.connectAudio(sp);
+    builtinPresets = P.getPresets();
+    builtinKeys = shuffle(Object.keys(builtinPresets));
+  } catch (e) { fail(e); return; }
+
+  function sizeTo() {
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(16, Math.floor(window.innerWidth * dpr));
+    canvas.height = Math.max(16, Math.floor(window.innerHeight * dpr));
+    if (viz) viz.setRendererSize(canvas.width, canvas.height);
+  }
+  window.addEventListener('resize', sizeTo); sizeTo();
+
+  // Native pushes preset files here in response to a request.
+  const pending = {};
+  window.__recvPreset = function (name, b64) {
+    if (!pending[name]) return;
+    try {
+      const text = new TextDecoder().decode(Uint8Array.from(atob(b64), c => c.charCodeAt(0)));
+      pending[name].resolve(JSON.parse(text));
+    } catch (e) { pending[name].reject(e); }
+    delete pending[name];
+  };
+  window.__recvError = function (name, msg) {
+    if (pending[name]) { pending[name].reject(new Error(msg)); delete pending[name]; }
+  };
+  function requestPreset(name) {
+    return new Promise((resolve, reject) => {
+      pending[name] = { resolve, reject };
+      window.webkit.messageHandlers.konpo.postMessage(name);
+    });
+  }
+
+  function currentList() { return mode === 'custom' ? customNames : builtinKeys; }
+
+  async function presetAt(i) {
+    if (mode === 'builtin') return builtinPresets[builtinKeys[i]];
+    const name = customNames[i];
+    if (cache[name]) return cache[name];
+    const preset = await requestPreset(name);
+    cache[name] = preset;
+    return preset;
+  }
+
+  let loading = false, tries = 0;
+  async function load(i, blend) {
+    const list = currentList();
+    if (!list.length || loading) return;
+    loading = true;
+    idx = ((i % list.length) + list.length) % list.length;
+    try {
+      const preset = await presetAt(idx);
+      viz.loadPreset(preset, blend === undefined ? 2.7 : blend);
+      window.currentPreset = list[idx];
+      document.getElementById('err').textContent = '';
+      tries = 0;
+    } catch (e) {
+      fail('Skipped ' + list[idx] + ': ' + e);
+      loading = false;
+      if (list.length > 1 && ++tries < list.length) { load(i + 1, blend); return; }
+      tries = 0;
+    }
+    loading = false;
+  }
+
+  window.nextPreset = function () { load(idx + 1); };
+  window.prevPreset = function () { load(idx - 1); };
+  window.randomPreset = function () { load(Math.floor(Math.random() * currentList().length)); };
+  window.loadCustomPresets = function (names) {
+    if (typeof names === 'string') { try { names = JSON.parse(names); } catch (e) { names = []; } }
+    customNames = shuffle((names || []).slice());
+    cache = {}; mode = 'custom'; idx = 0;
+    if (customNames.length) load(0, 0); else fail('No .json presets in folder');
+  };
+  window.useBuiltinPresets = function () { mode = 'builtin'; idx = 0; load(0, 0); };
+
+  let auto = true;
+  window.setAuto = function (b) { auto = !!b; };
+  setInterval(function () { if (auto) window.nextPreset(); }, 16000);
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight') window.nextPreset();
+    else if (e.key === 'ArrowLeft') window.prevPreset();
+    else if (e.key === ' ') { e.preventDefault(); window.randomPreset(); }
+  });
+
+  load(0, 0);
+  (function frame() { try { viz.render(); } catch (e) {} requestAnimationFrame(frame); })();
+})();
+</script>
+</body>
+</html>

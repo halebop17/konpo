@@ -1,0 +1,14 @@
+.DS_Store
+xcuserdata/
+DerivedData/
+*.xcuserstate
+build/
+Konpo (standalone).html
+/docs
+# Third-party preset packs / repos (large assets kept locally, not source)
+butterchurn-presets-repo/
+milkdrop-presets-for-butterchurn/
+Butterchurn Official Presets/
+Milkdrop Mega Collection (Curated)/
+claude.md
+.claude/
