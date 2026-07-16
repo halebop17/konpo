@@ -53,6 +53,18 @@ actor MetadataService {
         return resolved
     }
 
+    /// Downscaled artwork for an album cell. Looks in the album *folder* first —
+    /// a multi-disc album's cover.jpg sits beside CD1/CD2, not inside them — then
+    /// falls back to a representative track's embedded artwork. Cached per album
+    /// folder and size, separate from the per-track cache.
+    func albumArtworkData(folder: URL, track: URL?, maxPixel: Int) async -> Data? {
+        let key = "album:\(maxPixel):\(folder.absoluteString)"
+        if let cached = artCache[key] { return cached.isEmpty ? nil : cached }
+        let resolved = await Self.loadAlbumArtwork(folder: folder, track: track, maxPixel: maxPixel)
+        artCache[key] = resolved ?? Data()
+        return resolved
+    }
+
     // MARK: - Metadata loading (nonisolated: pure, runs on the caller's task)
 
     private nonisolated static func loadMetadata(url: URL) async -> TrackMetadata {
@@ -145,6 +157,17 @@ actor MetadataService {
         if let folderURL, let data = try? Data(contentsOf: folderURL) {
             return downscale(data, maxPixel: maxPixel)
         }
+        return nil
+    }
+
+    /// Album-cell artwork: the album folder's own cover image wins (it's shared
+    /// by multi-disc albums), otherwise defer to the representative track's
+    /// embedded/folder artwork.
+    private nonisolated static func loadAlbumArtwork(folder: URL, track: URL?, maxPixel: Int) async -> Data? {
+        if let coverURL = folderArtworkURL(in: folder), let data = try? Data(contentsOf: coverURL) {
+            return downscale(data, maxPixel: maxPixel)
+        }
+        if let track { return await loadArtwork(url: track, maxPixel: maxPixel) }
         return nil
     }
 

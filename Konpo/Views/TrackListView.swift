@@ -126,7 +126,7 @@ struct TrackListView: View {
             }
         }
         Button("New Playlist…") { app.beginNewPlaylist(with: track) }
-        if app.sidebarMode == .playlists, let playlist = app.selectedPlaylist {
+        if app.viewMode == .playlists, let playlist = app.selectedPlaylist {
             Divider()
             Button("Remove from Playlist", role: .destructive) {
                 app.removeFromPlaylist(track, playlist: playlist)
@@ -144,7 +144,7 @@ struct TrackListView: View {
     }
 
     private var emptyMessage: String {
-        if app.sidebarMode == .playlists {
+        if app.viewMode == .playlists {
             return app.selectedPlaylist == nil ? "Select a playlist" : "Playlist is empty"
         }
         return app.selectedFolder == nil ? "Select a folder" : "No audio files"

@@ -13,7 +13,10 @@ final class AppModel {
     let playlists = PlaylistStore()
     @ObservationIgnored let nowPlayingService = NowPlayingService()
 
-    enum SidebarMode { case folders, playlists }
+    /// The three top-level views: the folder tree + track list, the album grid,
+    /// and playlists. Folders and albums share the folder-tree sidebar; playlists
+    /// swaps it for the playlist list.
+    enum ViewMode: String { case folders, albums, playlists }
 
     var selectedFolder: FileNode?
     var tracks: [Track] = []
@@ -22,13 +25,27 @@ final class AppModel {
     /// Transient error banner text (auto-clears).
     var errorMessage: String?
 
-    // Sidebar / playlists
-    var sidebarMode: SidebarMode = .folders {
-        didSet { UserDefaults.standard.set(sidebarMode == .playlists ? "playlists" : "folders", forKey: "sidebarMode") }
+    // View mode / playlists
+    var viewMode: ViewMode = .folders {
+        didSet { UserDefaults.standard.set(viewMode.rawValue, forKey: "viewMode") }
     }
     var selectedPlaylist: Playlist?
     var showNewPlaylistPrompt = false
     var newPlaylistName = ""
+
+    // Album grid
+    var albums: [Album] = []
+    var isLoadingAlbums = false
+    /// The album whose tracks are currently loaded (played from the grid). Drives
+    /// the album-view art panel's header/tracklist; nil when the loaded tracks
+    /// came from a folder or playlist instead.
+    var playingAlbum: Album?
+    /// Live filter text for the album grid.
+    var albumSearchText = ""
+    /// Bumped by the Find command (⌘F) to ask the grid to focus its search field.
+    var albumSearchFocusRequest = 0
+    private var albumsTask: Task<Void, Never>?
+    private var albumsCache: [URL: [Album]] = [:]
 
     /// Track whose album art the full-size art window should display.
     var artworkFullURL: URL?
@@ -161,13 +178,91 @@ final class AppModel {
         selectedFolder = node
         selectedTrack = nil
         UserDefaults.standard.set(node.url.path, forKey: lastFolderKey)
-        loadTracks(from: node.url)
+        if viewMode == .albums {
+            loadAlbums(for: node.url)
+        } else {
+            loadTracks(from: node.url)
+        }
     }
 
-    /// On launch, restore the sidebar mode plus the last folder/playlist.
+    // MARK: - Album grid
+
+    /// Discover the albums under `url` (recursively) for the grid. Cached per
+    /// folder and invalidated on ⌘R. The walk runs off the main actor; the grid
+    /// renders thumbnails lazily so only visible covers ever load.
+    func loadAlbums(for url: URL?) {
+        albumsTask?.cancel()
+        guard let url else { albums = []; isLoadingAlbums = false; return }
+        if let cached = albumsCache[url] { albums = cached; isLoadingAlbums = false; return }
+        isLoadingAlbums = true
+        albums = []
+        albumsTask = Task {
+            let found = await Task.detached(priority: .userInitiated) {
+                FileTreeModel.albumFolders(under: url)
+            }.value
+            if Task.isCancelled { return }
+            albumsCache[url] = found
+            albums = found
+            isLoadingAlbums = false
+        }
+    }
+
+    /// Jukebox play: queue the album's tracks and start from the first. The tree
+    /// selection (the album grid's scope) is left untouched.
+    func playAlbum(_ album: Album) {
+        let queue = album.trackURLs.map { Track(url: $0) }
+        guard let first = queue.first else { return }
+        playingAlbum = album
+        tracks = queue
+        selectedTrack = first
+        loadTracksTask?.cancel()
+        play(first, in: queue)
+        // Files often aren't named in track order, so once tags load, reorder the
+        // album by disc + track number. If that reveals a different opening track
+        // and we're still at the very start, begin from the real first track.
+        var discIndex: [URL: Int] = [:]
+        for (i, disc) in album.discs.enumerated() {
+            for url in disc.trackURLs { discIndex[url] = i }
+        }
+        loadTracksTask = Task {
+            await loadMetadata(for: queue)
+            if Task.isCancelled { return }
+            let atStart = nowPlaying?.url == first.url && player.position < 3
+            sortTracksByNumber(discIndex: discIndex)
+            if atStart, let realFirst = tracks.first, realFirst.url != first.url {
+                play(realFirst, in: tracks)
+            }
+        }
+    }
+
+    /// Reorder `tracks` by disc (when a map is given), then tag track number, with
+    /// filename as the tie-break / fallback. Keeps the play queue and current
+    /// track in sync when the queue is this same collection (so folder browsing
+    /// never disturbs playback coming from elsewhere).
+    private func sortTracksByNumber(discIndex: [URL: Int]? = nil) {
+        let sorted = tracks.sorted { a, b in
+            if let discIndex {
+                let da = discIndex[a.url] ?? 0, db = discIndex[b.url] ?? 0
+                if da != db { return da < db }
+            }
+            if let x = a.trackNumber, let y = b.trackNumber, x != y { return x < y }
+            if (a.trackNumber == nil) != (b.trackNumber == nil) { return a.trackNumber != nil }
+            return a.url.lastPathComponent.localizedStandardCompare(b.url.lastPathComponent) == .orderedAscending
+        }
+        tracks = sorted
+        if Set(playQueue.map(\.url)) == Set(sorted.map(\.url)) {
+            playQueue = sorted
+            if let np = nowPlaying, let idx = sorted.firstIndex(where: { $0.url == np.url }) {
+                queueIndex = idx
+            }
+            player.setUpcoming(url: upcomingURL())
+        }
+    }
+
+    /// On launch, restore the view mode plus the last folder/playlist.
     private func restoreSession() {
         guard tree.root != nil else { return }
-        let playlistsMode = UserDefaults.standard.string(forKey: "sidebarMode") == "playlists"
+        let savedMode = ViewMode(rawValue: UserDefaults.standard.string(forKey: "viewMode") ?? "") ?? .folders
         Task {
             // Resolve the last folder node so switching back to Folders works.
             let lastPath = UserDefaults.standard.string(forKey: lastFolderKey)
@@ -178,9 +273,9 @@ final class AppModel {
                 node = tree.root
             }
             selectedFolder = node
+            viewMode = savedMode
 
-            if playlistsMode {
-                sidebarMode = .playlists
+            if savedMode == .playlists {
                 if let idString = UserDefaults.standard.string(forKey: "lastPlaylistID"),
                    let id = UUID(uuidString: idString),
                    let playlist = playlists.playlists.first(where: { $0.id == id }) {
@@ -192,13 +287,18 @@ final class AppModel {
         }
     }
 
-    /// ⌘R: re-read the current folder's subfolders and tracks from disk.
+    /// ⌘R: re-read the current folder's subfolders, tracks, and albums from disk.
     func refresh() {
         guard let folder = selectedFolder else { return }
         Task {
             await metadata.clearCache()
             await tree.refresh(folder)
-            loadTracks(from: folder.url)
+            albumsCache.removeAll()
+            if viewMode == .albums {
+                loadAlbums(for: folder.url)
+            } else {
+                loadTracks(from: folder.url)
+            }
         }
     }
 
@@ -212,34 +312,47 @@ final class AppModel {
     }
 
     private func loadTracks(from url: URL) {
-        startTrackLoad {
+        // A folder is an album — order it by track number once tags load.
+        startTrackLoad(sortByNumber: true) {
             await Task.detached(priority: .userInitiated) { FileTreeModel.audioFiles(in: url) }.value
         }
     }
 
     private func loadTracks(urls: [URL]) {
+        // Playlists keep their curated order — never re-sort.
         startTrackLoad { urls.map { Track(url: $0) } }
     }
 
-    private func startTrackLoad(_ produce: @escaping @Sendable () async -> [Track]) {
+    private func startTrackLoad(sortByNumber: Bool = false, _ produce: @escaping @Sendable () async -> [Track]) {
+        playingAlbum = nil
         loadTracksTask?.cancel()
         loadTracksTask = Task {
             let files = await produce()
             if Task.isCancelled { return }
             tracks = files
-            if selectedTrack == nil { selectedTrack = files.first }
+            let autoFirst = files.first
+            if selectedTrack == nil { selectedTrack = autoFirst }
             await loadMetadata(for: files)
+            if Task.isCancelled { return }
+            if sortByNumber {
+                sortTracksByNumber()
+                // Keep the default selection on the real first track after reordering.
+                if selectedTrack?.url == autoFirst?.url { selectedTrack = tracks.first }
+            }
         }
     }
 
     // MARK: - Playlists
 
-    func setSidebarMode(_ mode: SidebarMode) {
-        sidebarMode = mode
+    func setViewMode(_ mode: ViewMode) {
+        viewMode = mode
         selectedTrack = nil
         switch mode {
         case .folders:
             if let folder = selectedFolder { loadTracks(from: folder.url) } else { tracks = [] }
+        case .albums:
+            // The grid loads albums itself from the current folder scope.
+            loadAlbums(for: selectedFolder?.url)
         case .playlists:
             if let playlist = selectedPlaylist { selectPlaylist(playlist) } else { tracks = [] }
         }
@@ -271,7 +384,7 @@ final class AppModel {
     }
 
     private func refreshIfViewing(_ id: Playlist.ID) {
-        if sidebarMode == .playlists, selectedPlaylist?.id == id,
+        if viewMode == .playlists, selectedPlaylist?.id == id,
            let updated = playlists.playlists.first(where: { $0.id == id }) {
             selectPlaylist(updated)
         }
@@ -314,7 +427,7 @@ final class AppModel {
         let playlist = playlists.create(name: name)
         Task {
             await addPending(pending, to: playlist.id)
-            sidebarMode = .playlists
+            viewMode = .playlists
             if let created = playlists.playlists.first(where: { $0.id == playlist.id }) {
                 selectPlaylist(created)
             }

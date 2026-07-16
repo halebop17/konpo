@@ -18,6 +18,20 @@ struct KonpoApp: App {
                 Button("Refresh") { app.refresh() }
                     .keyboardShortcut("r", modifiers: .command)
             }
+            CommandMenu("View") {
+                Button("Folders") { app.setViewMode(.folders) }
+                    .keyboardShortcut("1", modifiers: .command)
+                Button("Albums") { app.setViewMode(.albums) }
+                    .keyboardShortcut("2", modifiers: .command)
+                Button("Playlists") { app.setViewMode(.playlists) }
+                    .keyboardShortcut("3", modifiers: .command)
+                Divider()
+                Button("Find Albums") {
+                    app.setViewMode(.albums)
+                    app.albumSearchFocusRequest += 1
+                }
+                .keyboardShortcut("f", modifiers: .command)
+            }
             CommandMenu("Playback") {
                 Button(app.player.state == .playing ? "Pause" : "Play") { app.playPause() }
                     .keyboardShortcut(.space, modifiers: [])
