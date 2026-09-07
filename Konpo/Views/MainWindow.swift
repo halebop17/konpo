@@ -7,6 +7,7 @@ enum FocusedPane: Hashable { case folders, tracks }
 /// The main three-region layout: folder tree, track list, album-art panel, plus
 /// the bottom transport bar. Sidebar width is user-resizable and persisted.
 struct MainWindow: View {
+    @Environment(\.scaled) private var scaled
     @Environment(AppModel.self) private var app
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
@@ -25,7 +26,7 @@ struct MainWindow: View {
     private static let minSidebar: Double = 176
     private static let maxSidebar: Double = 420
     private static let artSizes: [CGFloat] = [212, 260, 344]
-    private var artPanelWidth: CGFloat { Self.artSizes[max(0, min(2, artPanelSize))] }
+    private var artPanelWidth: CGFloat { scaled.metric(Self.artSizes[max(0, min(2, artPanelSize))]) }
 
     var body: some View {
         @Bindable var app = app
@@ -33,7 +34,7 @@ struct MainWindow: View {
             HStack(spacing: 0) {
                 if !treeHidden {
                     SidebarView(focus: $focus)
-                        .frame(width: sidebarWidth)
+                        .frame(width: max(sidebarWidth, scaled.metric(Self.minSidebar)))
                         .overlay(alignment: .trailing) { focusEdge(.folders) }
                     sidebarDivider
                 }
@@ -49,7 +50,7 @@ struct MainWindow: View {
             transportBar
         }
         .onAppear { if focus == nil { focus = .tracks } }
-        .frame(minWidth: 720, minHeight: 480)
+        .frame(minWidth: scaled.metric(720), minHeight: scaled.metric(480))
         .background(Theme.window)
         .background(WindowConfigurator())
         // The path is the native window title and the toggle a titlebar button —
@@ -106,7 +107,7 @@ struct MainWindow: View {
                 Text(message)
                     .foregroundStyle(Theme.text)
             }
-            .font(.system(size: 12, weight: .medium))
+            .font(scaled.font(12, weight: .medium))
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
             .background(Theme.titlebar, in: Capsule())
@@ -169,7 +170,8 @@ struct MainWindow: View {
                 .onChanged { value in
                     let start = dragStartWidth ?? sidebarWidth
                     if dragStartWidth == nil { dragStartWidth = start }
-                    sidebarWidth = min(max(start + value.translation.width, Self.minSidebar), Self.maxSidebar)
+                    sidebarWidth = min(max(start + value.translation.width,
+                                          scaled.metric(Self.minSidebar)), scaled.metric(Self.maxSidebar))
                 }
                 .onEnded { _ in dragStartWidth = nil }
         )
@@ -189,7 +191,7 @@ struct MainWindow: View {
             // view the context is the album name (so a multi-disc album reads as one
             // album, not "…(CD1)"); otherwise it's the track's folder.
             let context: String
-            if app.viewMode == .albums, let album = app.playingAlbum {
+            if app.viewMode == .albums, let album = app.albums.playing {
                 context = album.name
             } else {
                 context = track.url.deletingLastPathComponent().lastPathComponent
@@ -256,7 +258,7 @@ struct MainWindow: View {
     /// The album cover — shared by both panel layouts. In album view it resolves
     /// art at the album-folder level so a multi-disc cover still shows.
     private var panelCover: some View {
-        AlbumArtView(url: displayTrack?.url, albumFolder: app.playingAlbum?.folderURL, maxPixel: 900)
+        AlbumArtView(url: displayTrack?.url, albumFolder: app.albums.playing?.folderURL, maxPixel: 900)
             .aspectRatio(1, contentMode: .fit)
             .frame(maxWidth: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: 6))
@@ -280,12 +282,12 @@ struct MainWindow: View {
             VStack(alignment: .leading, spacing: 0) {
                 panelCover
                 Text(displayTrack?.title ?? "No selection")
-                    .font(.system(size: 15, weight: .bold))
+                    .font(scaled.font(15, weight: .bold))
                     .foregroundStyle(displayTrack == nil ? Theme.muted : Theme.text)
                     .lineLimit(2)
                     .padding(.top, 14)
                 Text(dashed(displayTrack?.artist))
-                    .font(.system(size: 12))
+                    .font(scaled.font(12))
                     .foregroundStyle(Theme.muted)
                     .padding(.top, 3)
 
@@ -313,14 +315,14 @@ struct MainWindow: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
                 panelCover
-                Text(app.playingAlbum?.name ?? "No album playing")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(app.playingAlbum == nil ? Theme.muted : Theme.text)
+                Text(app.albums.playing?.name ?? "No album playing")
+                    .font(scaled.font(15, weight: .bold))
+                    .foregroundStyle(app.albums.playing == nil ? Theme.muted : Theme.text)
                     .lineLimit(2)
                     .padding(.top, 14)
-                if app.playingAlbum != nil, let artist = displayTrack?.artist, !artist.isEmpty {
+                if app.albums.playing != nil, let artist = displayTrack?.artist, !artist.isEmpty {
                     Text(artist)
-                        .font(.system(size: 12))
+                        .font(scaled.font(12))
                         .foregroundStyle(Theme.muted)
                         .padding(.top, 3)
                 }
@@ -331,12 +333,17 @@ struct MainWindow: View {
     }
 
     @ViewBuilder private var albumTrackList: some View {
-        if let album = app.playingAlbum, !app.tracks.isEmpty {
+        if let album = app.albums.playing, !app.tracks.isEmpty {
+            // Grouped once per render rather than re-filtering every loaded
+            // track for each disc in turn.
+            let grouped = tracksByDisc(album)
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(Array(album.discs.enumerated()), id: \.offset) { pair in
-                            discSection(pair.element, showHeader: album.isMultiDisc)
+                            discSection(pair.element,
+                                        tracks: grouped[pair.offset] ?? [],
+                                        showHeader: album.isMultiDisc)
                         }
                     }
                 }
@@ -348,32 +355,45 @@ struct MainWindow: View {
             .overlay(alignment: .top) { Theme.separator.frame(height: 1) }
         } else {
             Text("Play an album to see its tracks")
-                .font(.system(size: 12))
+                .font(scaled.font(12))
                 .foregroundStyle(Theme.muted)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .overlay(alignment: .top) { Theme.separator.frame(height: 1) }
         }
     }
 
-    @ViewBuilder private func discSection(_ disc: AlbumDisc, showHeader: Bool) -> some View {
+    @ViewBuilder private func discSection(_ disc: AlbumDisc, tracks: [Track],
+                                          showHeader: Bool) -> some View {
         if showHeader, let label = disc.label {
             discHeader(label)
         }
-        ForEach(Array(tracksForDisc(disc).enumerated()), id: \.element.id) { pair in
+        ForEach(Array(tracks.enumerated()), id: \.element.id) { pair in
             panelTrackRow(track: pair.element, fallback: pair.offset + 1).id(pair.element.url)
         }
     }
 
-    /// The loaded tracks belonging to a disc, in the album's sorted order.
-    private func tracksForDisc(_ disc: AlbumDisc) -> [Track] {
-        let urls = Set(disc.trackURLs)
-        return app.tracks.filter { urls.contains($0.url) }
+    /// The loaded tracks split by disc index, in the album's sorted order.
+    ///
+    /// One pass over `app.tracks` for the whole album instead of one filter per
+    /// disc — the previous shape was O(discs × tracks) on every render of the
+    /// panel, including every render caused by the playhead moving.
+    private func tracksByDisc(_ album: Album) -> [Int: [Track]] {
+        var discOf: [URL: Int] = [:]
+        for (index, disc) in album.discs.enumerated() {
+            for url in disc.trackURLs { discOf[url] = index }
+        }
+        var grouped: [Int: [Track]] = [:]
+        for track in app.tracks {
+            guard let index = discOf[track.url] else { continue }
+            grouped[index, default: []].append(track)
+        }
+        return grouped
     }
 
     private func discHeader(_ label: String) -> some View {
         HStack(spacing: 8) {
             Text(label)
-                .font(.system(size: 10, weight: .semibold))
+                .font(scaled.font(10, weight: .semibold))
                 .kerning(0.6)
                 .foregroundStyle(Theme.dim)
             Theme.separator.frame(height: 1)
@@ -392,21 +412,21 @@ struct MainWindow: View {
         let number = track.trackNumber.map { String($0) } ?? "\(fallback)"
         return HStack(spacing: 8) {
             Text(playing ? "▶" : number)
-                .font(.konpoMono(11))
+                .font(scaled.mono(11))
                 .foregroundStyle(playing ? app.appearance.accent : Theme.dim)
                 .frame(width: 20, alignment: .trailing)
             Text(track.title)
-                .font(.system(size: 12, weight: playing ? .semibold : .regular))
+                .font(scaled.font(12, weight: playing ? .semibold : .regular))
                 .foregroundStyle(playing ? app.appearance.accent : Theme.text)
                 .lineLimit(1)
                 .truncationMode(.tail)
             Spacer(minLength: 4)
             Text(track.durationText)
-                .font(.konpoMono(10.5))
+                .font(scaled.mono(10.5))
                 .foregroundStyle(Theme.muted)
         }
         .padding(.horizontal, 14)
-        .frame(height: Theme.rowHeight)
+        .frame(height: scaled.rowHeight)
         .frame(maxWidth: .infinity)
         .background(playing ? app.appearance.accentTint : (selected ? app.appearance.highlightSelection : .clear))
         .overlay(alignment: .leading) { if playing { app.appearance.accent.frame(width: 2) } }
@@ -463,12 +483,12 @@ struct MainWindow: View {
     private func metaRow(_ key: String, _ value: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Text(key)
-                .font(.system(size: 10.5))
+                .font(scaled.font(10.5))
                 .kerning(0.5)
                 .foregroundStyle(Theme.dim)
             Spacer(minLength: 0)
             Text(value)
-                .font(.konpoMono(11))
+                .font(scaled.mono(11))
                 .foregroundStyle(Theme.text)
         }
     }
@@ -510,7 +530,7 @@ struct MainWindow: View {
                         .frame(width: 38, height: 38)
                         .overlay {
                             Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                                .font(.system(size: 16, weight: .bold))
+                                .font(scaled.font(16, weight: .bold))
                                 .foregroundStyle(app.appearance.onAccent)
                         }
                         .contentShape(Circle())
@@ -524,14 +544,14 @@ struct MainWindow: View {
             // the window and there's never an empty gap. A long title is
             // truncated only once the bar would shrink below its minimum.
             Text(nowLine)
-                .font(.system(size: 12))
+                .font(scaled.font(12))
                 .foregroundStyle(app.nowPlaying == nil ? Theme.muted : Theme.text)
                 .lineLimit(1)
                 .truncationMode(.tail)
 
             HStack(spacing: 9) {
                 Text(timeString(displaySeconds))
-                    .font(.konpoMono(11))
+                    .font(scaled.mono(11))
                     .foregroundStyle(Theme.muted)
                 DraggableBar(fraction: fraction, fillColor: app.appearance.accent, showKnob: true,
                     hitHeight: 30,
@@ -547,7 +567,7 @@ struct MainWindow: View {
                         scrubSeconds = nil
                     })
                 Text(timeString(duration))
-                    .font(.konpoMono(11))
+                    .font(scaled.mono(11))
                     .foregroundStyle(Theme.muted)
             }
             // Greedy so it fills wide windows, but a low floor so a narrow window
@@ -558,7 +578,7 @@ struct MainWindow: View {
 
             HStack(spacing: 7) {
                 Image(systemName: "speaker.wave.2.fill")
-                    .font(.system(size: 13))
+                    .font(scaled.font(13))
                     .foregroundStyle(Theme.muted)
                     .accessibilityHidden(true)
                 DraggableBar(fraction: Double(app.player.volume), fillColor: Theme.muted, showKnob: false,
@@ -580,7 +600,7 @@ struct MainWindow: View {
                                  action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 15))
+                .font(scaled.font(15))
                 .foregroundStyle(Theme.muted)
                 .frame(width: 32, height: 32)
                 .contentShape(Rectangle())

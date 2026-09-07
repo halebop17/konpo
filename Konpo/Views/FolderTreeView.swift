@@ -3,6 +3,7 @@ import SwiftUI
 /// Left sidebar: the lazy folder tree. Rows are flattened into a single list so
 /// the LazyVStack stays lazy across the whole visible (expanded) tree.
 struct FolderTreeView: View {
+    @Environment(\.scaled) private var scaled
     @Environment(AppModel.self) private var app
     var focus: FocusState<FocusedPane?>.Binding
 
@@ -46,13 +47,13 @@ struct FolderTreeView: View {
     private var emptyState: some View {
         VStack(spacing: 10) {
             Text("No folder open")
-                .font(.system(size: 12))
+                .font(scaled.font(12))
                 .foregroundStyle(Theme.muted)
             Button {
                 app.chooseRoot()
             } label: {
                 Text("Open Folder…  ⌘O")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(scaled.font(12, weight: .medium))
                     .foregroundStyle(app.appearance.accent)
             }
             .buttonStyle(.plain)
@@ -63,6 +64,7 @@ struct FolderTreeView: View {
 }
 
 private struct FolderRowView: View {
+    @Environment(\.scaled) private var scaled
     @Environment(AppModel.self) private var app
     let node: FileNode
     let depth: Int
@@ -85,12 +87,12 @@ private struct FolderRowView: View {
                 // Decorative: VoiceOver gets the same information from the value
                 // below, rather than reading out "▾".
                 Text(icon)
-                    .font(.system(size: isLeaf ? 9 : 8))
+                    .font(scaled.font(isLeaf ? 9 : 8))
                     .foregroundStyle(isSelected ? app.appearance.accent : Theme.dim)
                     .frame(width: 11)
                     .accessibilityHidden(true)
                 Text(node.name)
-                    .font(.system(size: Theme.fontSize, weight: isSelected ? .semibold : .regular))
+                    .font(scaled.font(Theme.fontSize, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(isSelected ? app.appearance.accent : Theme.text)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -98,7 +100,7 @@ private struct FolderRowView: View {
             }
             .padding(.leading, 10 + CGFloat(depth) * 15)
             .padding(.trailing, 8)
-            .frame(height: Theme.rowHeight)
+            .frame(height: scaled.rowHeight)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(isSelected ? app.appearance.accentSelection : .clear)
             .overlay(alignment: .leading) {

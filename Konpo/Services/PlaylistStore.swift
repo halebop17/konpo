@@ -56,12 +56,6 @@ final class PlaylistStore {
         save()
     }
 
-    func rename(_ id: Playlist.ID, to name: String) {
-        guard let index = playlists.firstIndex(where: { $0.id == id }) else { return }
-        playlists[index].name = name
-        save()
-    }
-
     func urls(for id: Playlist.ID) -> [URL] {
         guard let playlist = playlists.first(where: { $0.id == id }) else { return [] }
         return playlist.trackPaths.map { URL(fileURLWithPath: $0) }

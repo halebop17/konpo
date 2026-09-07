@@ -9,6 +9,7 @@ struct KonpoApp: App {
             MainWindow()
                 .environment(app)
                 .preferredColorScheme(.dark)
+                .konpoTextScaling()
         }
         .defaultSize(width: 1056, height: 640)
         .commands {
@@ -28,7 +29,7 @@ struct KonpoApp: App {
                 Divider()
                 Button("Find Albums") {
                     app.setViewMode(.albums)
-                    app.albumSearchFocusRequest += 1
+                    app.albums.searchFocusRequest += 1
                 }
                 .keyboardShortcut("f", modifiers: .command)
             }
@@ -63,6 +64,7 @@ struct KonpoApp: App {
         Settings {
             SettingsView()
                 .environment(app)
+                .konpoTextScaling()
         }
 
         // Optional visualizer — created only when opened, so the base app is

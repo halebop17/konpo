@@ -4,6 +4,7 @@ import AppKit
 /// Center pane: the dense track table for the selected folder. In M1 metadata
 /// columns are blank (filenames only); tags stream in at M3.
 struct TrackListView: View {
+    @Environment(\.scaled) private var scaled
     @Environment(AppModel.self) private var app
     var focus: FocusState<FocusedPane?>.Binding
 
@@ -59,7 +60,7 @@ struct TrackListView: View {
             time: Text("TIME"),
             resizable: true
         )
-        .font(.system(size: Theme.fontSize - 2, weight: .semibold))
+        .font(scaled.font(Theme.fontSize - 2, weight: .semibold))
         .kerning(0.6)
         .foregroundStyle(Theme.dim)
         .padding(.vertical, 7)
@@ -82,24 +83,24 @@ struct TrackListView: View {
         let number = track.trackNumber.map { String(format: "%02d", $0) } ?? String(format: "%02d", index + 1)
         return columns(
             num: Text(playing ? "▶" : number)
-                .font(.konpoMono(Theme.fontSize - 1))
+                .font(scaled.mono(Theme.fontSize - 1))
                 .foregroundStyle(playing ? app.appearance.accent : Theme.dim),
             title: Text(track.title)
-                .font(.system(size: Theme.fontSize, weight: playing ? .semibold : .regular))
+                .font(scaled.font(Theme.fontSize, weight: playing ? .semibold : .regular))
                 .foregroundStyle(playing ? app.appearance.accent : Theme.text),
             artist: Text(dashed(track.artist))
-                .font(.system(size: Theme.fontSize - 0.5))
+                .font(scaled.font(Theme.fontSize - 0.5))
                 .foregroundStyle(Theme.muted),
             album: Text(dashed(track.album))
-                .font(.system(size: Theme.fontSize - 0.5))
+                .font(scaled.font(Theme.fontSize - 0.5))
                 .foregroundStyle(Theme.muted),
             time: Text(dashed(track.durationText))
-                .font(.konpoMono(Theme.fontSize - 1))
+                .font(scaled.mono(Theme.fontSize - 1))
                 .foregroundStyle(Theme.muted)
         )
         .lineLimit(1)
         .padding(.horizontal, Theme.tablePadX)
-        .frame(height: Theme.rowHeight)
+        .frame(height: scaled.rowHeight)
         .frame(maxWidth: .infinity)
         .background(playing ? app.appearance.accentTint : (selected ? app.appearance.highlightSelection : .clear))
         .overlay(alignment: .leading) {
@@ -138,7 +139,7 @@ struct TrackListView: View {
     private var emptyState: some View {
         VStack(spacing: 6) {
             Text(emptyMessage)
-                .font(.system(size: 13))
+                .font(scaled.font(13))
                 .foregroundStyle(Theme.muted)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -161,7 +162,7 @@ struct TrackListView: View {
                          resizable: Bool = false) -> some View {
         let (tW, aW) = effectiveWidths()
         return HStack(spacing: 8) {
-            num.frame(width: Theme.colNumWidth, alignment: .leading)
+            num.frame(width: scaled.colNumWidth, alignment: .leading)
             title.frame(width: tW, alignment: .leading)
                 .overlay(alignment: .trailing) {
                     if resizable {
@@ -179,7 +180,7 @@ struct TrackListView: View {
                     }
                 }
             album.frame(minWidth: 40, maxWidth: .infinity, alignment: .leading)
-            time.frame(width: Theme.colTimeWidth, alignment: .trailing)
+            time.frame(width: scaled.colTimeWidth, alignment: .trailing)
         }
     }
 
@@ -206,7 +207,7 @@ struct TrackListView: View {
     private func maxTitleArtistSum() -> Double {
         guard tableWidth > 0 else { return titleWidth + artistWidth }
         // fixed = #, Time, 4 inter-column gaps, horizontal padding, min Album.
-        let fixed = Double(Theme.colNumWidth + Theme.colTimeWidth) + 32 + Double(Theme.tablePadX * 2) + 60
+        let fixed = Double(scaled.colNumWidth + scaled.colTimeWidth) + 32 + Double(Theme.tablePadX * 2) + Double(scaled.metric(60))
         return Swift.max(160, Double(tableWidth) - fixed)
     }
 }
