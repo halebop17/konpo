@@ -69,7 +69,7 @@ struct SidebarView: View {
             Text(title)
                 .font(.system(size: 10, weight: .medium))
                 .kerning(0.8)
-                .foregroundStyle(active ? app.accent : Theme.dim)
+                .foregroundStyle(active ? app.appearance.accent : Theme.dim)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

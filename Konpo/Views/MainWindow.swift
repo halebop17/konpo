@@ -9,12 +9,13 @@ enum FocusedPane: Hashable { case folders, tracks }
 struct MainWindow: View {
     @Environment(AppModel.self) private var app
     @Environment(\.openWindow) private var openWindow
-    @AppStorage("showArtPanel") private var showPanel = true
-    @AppStorage("sidebarWidth") private var sidebarWidth: Double = 210
+    @Environment(\.dismissWindow) private var dismissWindow
+    @AppStorage(Defaults.Key.showArtPanel) private var showPanel = true
+    @AppStorage(Defaults.Key.sidebarWidth) private var sidebarWidth: Double = 210
     /// Album-art panel width preset: 0 = small, 1 = medium, 2 = large.
-    @AppStorage("artPanelSize") private var artPanelSize: Int = 1
+    @AppStorage(Defaults.Key.artPanelSize) private var artPanelSize: Int = 1
     /// Hide the folder tree in album view (shared with AlbumGridView's toggle).
-    @AppStorage("albumHideTree") private var hideTree = false
+    @AppStorage(Defaults.Key.albumHideTree) private var hideTree = false
     @State private var dragStartWidth: Double?
     /// Non-nil while scrubbing the seek bar (seconds), so the elapsed label and
     /// fill track the drag instead of the live playhead.
@@ -78,7 +79,7 @@ struct MainWindow: View {
                     showPanel.toggle()
                 } label: {
                     Image(systemName: "sidebar.trailing")
-                        .foregroundStyle(showPanel ? app.accent : Theme.muted)
+                        .foregroundStyle(showPanel ? app.appearance.accent : Theme.muted)
                 }
                 .help("Toggle album art panel (⌘B)")
                 .keyboardShortcut("b", modifiers: .command)
@@ -101,7 +102,7 @@ struct MainWindow: View {
         if let message = app.errorMessage {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(app.accent)
+                    .foregroundStyle(app.appearance.accent)
                 Text(message)
                     .foregroundStyle(Theme.text)
             }
@@ -134,17 +135,19 @@ struct MainWindow: View {
     /// driving — primary accent for folders, second accent for the track list.
     @ViewBuilder private func focusEdge(_ pane: FocusedPane) -> some View {
         if focus == pane {
-            DottedEdge(color: pane == .folders ? app.accent : app.accent2)
+            DottedEdge(color: pane == .folders ? app.appearance.accent : app.appearance.accent2)
                 .frame(width: 2)
                 .transition(.opacity)
         }
     }
 
+    /// Matching on the window's *title* would break the moment the app is
+    /// localized, so identify the scene by its id instead.
     private func toggleVisualizer() {
-        if let win = NSApp.windows.first(where: { $0.title == "Visualizer" && $0.isVisible }) {
-            win.close()
+        if NSApp.windows.contains(where: { $0.isVisualizer && $0.isVisible }) {
+            dismissWindow(id: WindowID.visualizer)
         } else {
-            openWindow(id: "visualizer")
+            openWindow(id: WindowID.visualizer)
         }
     }
 
@@ -224,7 +227,7 @@ struct MainWindow: View {
     private func openArtworkFullSize() {
         guard let url = displayTrack?.url else { return }
         app.artworkFullURL = url
-        openWindow(id: "artwork")
+        openWindow(id: WindowID.artwork)
     }
 
     private var artPanel: some View {
@@ -390,11 +393,11 @@ struct MainWindow: View {
         return HStack(spacing: 8) {
             Text(playing ? "▶" : number)
                 .font(.konpoMono(11))
-                .foregroundStyle(playing ? app.accent : Theme.dim)
+                .foregroundStyle(playing ? app.appearance.accent : Theme.dim)
                 .frame(width: 20, alignment: .trailing)
             Text(track.title)
                 .font(.system(size: 12, weight: playing ? .semibold : .regular))
-                .foregroundStyle(playing ? app.accent : Theme.text)
+                .foregroundStyle(playing ? app.appearance.accent : Theme.text)
                 .lineLimit(1)
                 .truncationMode(.tail)
             Spacer(minLength: 4)
@@ -405,8 +408,8 @@ struct MainWindow: View {
         .padding(.horizontal, 14)
         .frame(height: Theme.rowHeight)
         .frame(maxWidth: .infinity)
-        .background(playing ? app.accentTint : (selected ? app.highlightSelection : .clear))
-        .overlay(alignment: .leading) { if playing { app.accent.frame(width: 2) } }
+        .background(playing ? app.appearance.accentTint : (selected ? app.appearance.highlightSelection : .clear))
+        .overlay(alignment: .leading) { if playing { app.appearance.accent.frame(width: 2) } }
         .overlay(alignment: .bottom) { Theme.separator.frame(height: 1) }
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { app.play(track) }
@@ -419,7 +422,7 @@ struct MainWindow: View {
         HStack(spacing: 6) {
             ForEach(0..<3, id: \.self) { i in
                 Circle()
-                    .fill(i == artPanelSize ? app.accent : Theme.dim)
+                    .fill(i == artPanelSize ? app.appearance.accent : Theme.dim)
                     .frame(width: CGFloat(5 + i * 2), height: CGFloat(5 + i * 2))
                     .frame(width: 16, height: 16)
                     .contentShape(Rectangle())
@@ -498,12 +501,12 @@ struct MainWindow: View {
                     app.playPause()
                 } label: {
                     Circle()
-                        .fill(app.accent)
+                        .fill(app.appearance.accent)
                         .frame(width: 38, height: 38)
                         .overlay {
                             Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                                 .font(.system(size: 16, weight: .bold))
-                                .foregroundStyle(app.onAccent)
+                                .foregroundStyle(app.appearance.onAccent)
                         }
                         .contentShape(Circle())
                 }
@@ -524,7 +527,7 @@ struct MainWindow: View {
                 Text(timeString(displaySeconds))
                     .font(.konpoMono(11))
                     .foregroundStyle(Theme.muted)
-                DraggableBar(fraction: fraction, fillColor: app.accent, showKnob: true,
+                DraggableBar(fraction: fraction, fillColor: app.appearance.accent, showKnob: true,
                     hitHeight: 30,
                     onScrub: { frac in
                         if duration > 0 { scrubSeconds = frac * duration }

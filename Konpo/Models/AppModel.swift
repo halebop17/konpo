@@ -1,6 +1,5 @@
 import Foundation
 import AppKit
-import SwiftUI
 
 /// Composition root. Owns the folder tree, player, metadata, and Now Playing
 /// bridge, plus the current folder/track selection and the play queue.
@@ -11,6 +10,7 @@ final class AppModel {
     let player = PlayerEngine()
     let metadata = MetadataService()
     let playlists = PlaylistStore()
+    let appearance = Appearance()
     @ObservationIgnored let nowPlayingService = NowPlayingService()
 
     /// The three top-level views: the folder tree + track list, the album grid,
@@ -27,7 +27,7 @@ final class AppModel {
 
     // View mode / playlists
     var viewMode: ViewMode = .folders {
-        didSet { UserDefaults.standard.set(viewMode.rawValue, forKey: "viewMode") }
+        didSet { Defaults.viewMode = viewMode.rawValue }
     }
     var selectedPlaylist: Playlist?
     var showNewPlaylistPrompt = false
@@ -56,97 +56,25 @@ final class AppModel {
     /// Optional user folder of visualizer presets (.milk or .json). nil = built-in.
     var visualizerPresetFolder: String? {
         didSet {
-            if let v = visualizerPresetFolder { UserDefaults.standard.set(v, forKey: "vizPresetFolder") }
-            else { UserDefaults.standard.removeObject(forKey: "vizPresetFolder") }
+            Defaults.visualizerPresetFolder = visualizerPresetFolder
         }
     }
 
     private enum PendingPlaylistAdd { case none, track(URL), folder(URL) }
     private var pendingAdd: PendingPlaylistAdd = .none
 
-    // MARK: Appearance (user-selectable accent color)
-
-    var accentHex: UInt32 = 0xF5A623 {
-        didSet { UserDefaults.standard.set(Int(accentHex), forKey: "accentHex") }
-    }
-    var accent: Color { Color(hex: accentHex) }
-    var accentTint: Color { accent.opacity(0.10) }
-    var accentSelection: Color { accent.opacity(0.16) }
-    /// Contrasting text color for on top of the accent (dark on light accents).
-    var onAccent: Color {
-        let r = Double((accentHex >> 16) & 0xFF) / 255
-        let g = Double((accentHex >> 8) & 0xFF) / 255
-        let b = Double(accentHex & 0xFF) / 255
-        return (0.299 * r + 0.587 * g + 0.114 * b) > 0.6 ? Color(hex: 0x1B1C1E) : .white
-    }
-    /// Two-way `Color` binding for the Settings color picker.
-    var accentColor: Color {
-        get { accent }
-        set {
-            let ns = NSColor(newValue).usingColorSpace(.sRGB) ?? NSColor(srgbRed: 0.96, green: 0.65, blue: 0.14, alpha: 1)
-            let r = UInt32((ns.redComponent * 255).rounded())
-            let g = UInt32((ns.greenComponent * 255).rounded())
-            let b = UInt32((ns.blueComponent * 255).rounded())
-            accentHex = (r << 16) | (g << 8) | b
-        }
-    }
-
-    /// Second accent — used to tint the keyboard-focus marker on the track list
-    /// (the folder list uses the primary accent).
-    var accent2Hex: UInt32 = 0x4EA1FF {
-        didSet { UserDefaults.standard.set(Int(accent2Hex), forKey: "accent2Hex") }
-    }
-    var accent2: Color { Color(hex: accent2Hex) }
-    var accent2Color: Color {
-        get { accent2 }
-        set {
-            let ns = NSColor(newValue).usingColorSpace(.sRGB) ?? NSColor(srgbRed: 0.31, green: 0.63, blue: 1, alpha: 1)
-            let r = UInt32((ns.redComponent * 255).rounded())
-            let g = UInt32((ns.greenComponent * 255).rounded())
-            let b = UInt32((ns.blueComponent * 255).rounded())
-            accent2Hex = (r << 16) | (g << 8) | b
-        }
-    }
-
-    /// Highlight color for the selected (not-playing) row in the track list.
-    var highlightHex: UInt32 = 0x9AA0A8 {
-        didSet { UserDefaults.standard.set(Int(highlightHex), forKey: "highlightHex") }
-    }
-    var highlight: Color { Color(hex: highlightHex) }
-    /// The subtle tint actually drawn behind the selected row.
-    var highlightSelection: Color { highlight.opacity(0.22) }
-    var highlightColor: Color {
-        get { highlight }
-        set {
-            let ns = NSColor(newValue).usingColorSpace(.sRGB) ?? NSColor(srgbRed: 0.6, green: 0.63, blue: 0.66, alpha: 1)
-            let r = UInt32((ns.redComponent * 255).rounded())
-            let g = UInt32((ns.greenComponent * 255).rounded())
-            let b = UInt32((ns.blueComponent * 255).rounded())
-            highlightHex = (r << 16) | (g << 8) | b
-        }
-    }
-
-    private var playQueue: [Track] = []
-    private var queueIndex = 0
+    /// What playback is stepping through. Separate from `tracks` (what the
+    /// centre pane is showing) so browsing never disturbs a queue that came
+    /// from somewhere else.
+    private var queue = PlayQueue()
 
     private var loadTracksTask: Task<Void, Never>?
     private var errorClearTask: Task<Void, Never>?
     private var nowPlayingArt: NSImage?
     private var nowPlayingArtURL: URL?
 
-    private let lastFolderKey = "lastFolderPath"
-
     init() {
-        if let saved = UserDefaults.standard.object(forKey: "accentHex") as? Int {
-            accentHex = UInt32(saved)
-        }
-        if let saved = UserDefaults.standard.object(forKey: "accent2Hex") as? Int {
-            accent2Hex = UInt32(saved)
-        }
-        if let saved = UserDefaults.standard.object(forKey: "highlightHex") as? Int {
-            highlightHex = UInt32(saved)
-        }
-        visualizerPresetFolder = UserDefaults.standard.string(forKey: "vizPresetFolder")
+        visualizerPresetFolder = Defaults.visualizerPresetFolder
         player.onTrackChanged = { [weak self] url in self?.engineAdvanced(to: url) }
         player.onPlaybackEnded = { [weak self] in self?.playbackEnded() }
         player.onError = { [weak self] message in self?.showError(message) }
@@ -182,7 +110,7 @@ final class AppModel {
     func selectFolder(_ node: FileNode) {
         selectedFolder = node
         selectedTrack = nil
-        UserDefaults.standard.set(node.url.path, forKey: lastFolderKey)
+        Defaults.lastFolderPath = node.url.path
         if viewMode == .albums {
             loadAlbums(for: node.url)
         } else {
@@ -255,22 +183,26 @@ final class AppModel {
             return a.url.lastPathComponent.localizedStandardCompare(b.url.lastPathComponent) == .orderedAscending
         }
         tracks = sorted
-        if Set(playQueue.map(\.url)) == Set(sorted.map(\.url)) {
-            playQueue = sorted
-            if let np = nowPlaying, let idx = sorted.firstIndex(where: { $0.url == np.url }) {
-                queueIndex = idx
-            }
-            player.setUpcoming(url: upcomingURL())
+        // Only re-orders the queue when it holds this same set of tracks, so a
+        // folder re-sort can't reach into playback started from elsewhere.
+        if queue.reorder(to: sorted) {
+            player.setUpcoming(url: queue.upcoming?.url)
         }
     }
 
     /// On launch, restore the view mode plus the last folder/playlist.
     private func restoreSession() {
-        guard tree.root != nil else { return }
-        let savedMode = ViewMode(rawValue: UserDefaults.standard.string(forKey: "viewMode") ?? "") ?? .folders
+        let savedMode = ViewMode(rawValue: Defaults.viewMode ?? "") ?? .folders
+        // The mode is restored even with no music folder open — playlists work
+        // without one, and this used to bail before restoring anything.
+        viewMode = savedMode
+        guard tree.root != nil else {
+            if savedMode == .playlists { restoreLastPlaylist() }
+            return
+        }
         Task {
             // Resolve the last folder node so switching back to Folders works.
-            let lastPath = UserDefaults.standard.string(forKey: lastFolderKey)
+            let lastPath = Defaults.lastFolderPath
             let node: FileNode?
             if let lastPath {
                 node = await tree.revealFolder(at: URL(fileURLWithPath: lastPath, isDirectory: true)) ?? tree.root
@@ -281,15 +213,18 @@ final class AppModel {
             viewMode = savedMode
 
             if savedMode == .playlists {
-                if let idString = UserDefaults.standard.string(forKey: "lastPlaylistID"),
-                   let id = UUID(uuidString: idString),
-                   let playlist = playlists.playlists.first(where: { $0.id == id }) {
-                    selectPlaylist(playlist)
-                }
+                restoreLastPlaylist()
             } else if let node {
                 selectFolder(node)
             }
         }
+    }
+
+    private func restoreLastPlaylist() {
+        guard let idString = Defaults.lastPlaylistID,
+              let id = UUID(uuidString: idString),
+              let playlist = playlists.playlists.first(where: { $0.id == id }) else { return }
+        selectPlaylist(playlist)
     }
 
     /// ⌘R: re-read the current folder's subfolders, tracks, and albums from disk.
@@ -366,7 +301,7 @@ final class AppModel {
     func selectPlaylist(_ playlist: Playlist) {
         selectedPlaylist = playlist
         selectedTrack = nil
-        UserDefaults.standard.set(playlist.id.uuidString, forKey: "lastPlaylistID")
+        Defaults.lastPlaylistID = playlist.id.uuidString
         loadTracks(urls: playlists.urls(for: playlist.id))
     }
 
@@ -554,31 +489,26 @@ final class AppModel {
 
     // MARK: - Playback
 
-    func play(_ track: Track, in queue: [Track]? = nil) {
-        playQueue = queue ?? tracks
-        queueIndex = playQueue.firstIndex { $0.url == track.url } ?? 0
+    func play(_ track: Track, in queueTracks: [Track]? = nil) {
+        queue = PlayQueue(queueTracks ?? tracks, startingAt: track)
         startCurrentQueueItem()
     }
 
-    /// Start the queue item at `queueIndex`, stepping past anything that won't
-    /// open. Playlists store plain filesystem paths, so a moved or deleted track
-    /// is routine — it should cost you one track, not the rest of the queue.
-    ///
-    /// Iterative rather than recursive, and bounded by the queue length, so a
-    /// queue where every file is missing terminates instead of spinning.
+    /// Start whatever the queue is pointing at, stepping past anything that
+    /// won't open. Playlists store plain filesystem paths, so a moved or deleted
+    /// track is routine — it should cost you one track, not the rest of the
+    /// queue. The loop ends on its own because `advance` walks the index past
+    /// the end, where `current` is nil.
     private func startCurrentQueueItem() {
-        var attempts = 0
-        while queueIndex < playQueue.count, attempts < playQueue.count {
-            let track = playQueue[queueIndex]
+        while let track = queue.current {
             nowPlaying = track
             selectedTrack = track
             if player.play(url: track.url) {
-                player.setUpcoming(url: upcomingURL())
+                player.setUpcoming(url: queue.upcoming?.url)
                 updateNowPlaying()
                 return
             }
-            queueIndex += 1
-            attempts += 1
+            queue.advance()
         }
         nowPlaying = nil
         updateNowPlaying()
@@ -587,12 +517,11 @@ final class AppModel {
     /// The engine hit an unopenable file while advancing on its own — resume the
     /// queue after it.
     private func skipFailedTrack(_ url: URL) {
-        guard let index = playQueue.firstIndex(where: { $0.url == url }) else {
+        guard queue.movePast(url) else {
             nowPlaying = nil
             updateNowPlaying()
             return
         }
-        queueIndex = index + 1
         startCurrentQueueItem()
     }
 
@@ -607,25 +536,25 @@ final class AppModel {
     }
 
     func playNext() {
-        guard !playQueue.isEmpty else { return }
-        guard queueIndex + 1 < playQueue.count else {
+        guard !queue.isEmpty else { return }
+        guard queue.hasNext else {
             player.stop()
             nowPlaying = nil
             updateNowPlaying()
             return
         }
-        queueIndex += 1
+        queue.advance()
         startCurrentQueueItem()
     }
 
     func playPrevious() {
-        guard !playQueue.isEmpty else { return }
-        if player.position > 3 || queueIndex == 0 {
+        guard !queue.isEmpty else { return }
+        if player.position > 3 || queue.isAtStart {
             player.seek(to: 0)
             updateNowPlaying()
             return
         }
-        queueIndex -= 1
+        queue.retreat()
         startCurrentQueueItem()
     }
 
@@ -636,22 +565,14 @@ final class AppModel {
 
     /// The engine advanced on its own (gapless or format boundary).
     private func engineAdvanced(to url: URL) {
-        if let index = playQueue.firstIndex(where: { $0.url == url }) {
-            queueIndex = index
-            nowPlaying = playQueue[index]
-        }
-        player.setUpcoming(url: upcomingURL())
+        if queue.move(to: url) { nowPlaying = queue.current }
+        player.setUpcoming(url: queue.upcoming?.url)
         updateNowPlaying()
     }
 
     private func playbackEnded() {
         nowPlaying = nil
         updateNowPlaying()
-    }
-
-    private func upcomingURL() -> URL? {
-        let next = queueIndex + 1
-        return next < playQueue.count ? playQueue[next].url : nil
     }
 
     // MARK: - Now Playing / remote commands

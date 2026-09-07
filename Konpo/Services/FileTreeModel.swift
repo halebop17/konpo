@@ -9,8 +9,6 @@ import AppKit
 final class FileTreeModel {
     private(set) var root: FileNode?
 
-    private let defaultsKey = "rootFolderPath"
-
     /// In-flight child loads, keyed by directory, so concurrent expands of the
     /// same node share one directory read.
     private var loadTasks: [URL: Task<Void, Never>] = [:]
@@ -21,7 +19,7 @@ final class FileTreeModel {
     ]
 
     init() {
-        if let path = UserDefaults.standard.string(forKey: defaultsKey) {
+        if let path = Defaults.rootFolderPath {
             var isDir: ObjCBool = false
             if FileManager.default.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue {
                 let node = FileNode(url: URL(fileURLWithPath: path, isDirectory: true))
@@ -46,7 +44,7 @@ final class FileTreeModel {
     }
 
     func setRoot(_ url: URL) {
-        UserDefaults.standard.set(url.path, forKey: defaultsKey)
+        Defaults.rootFolderPath = url.path
         let node = FileNode(url: url)
         root = node
         Task { await expand(node) }

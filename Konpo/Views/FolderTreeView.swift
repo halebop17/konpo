@@ -53,7 +53,7 @@ struct FolderTreeView: View {
             } label: {
                 Text("Open Folder…  ⌘O")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(app.accent)
+                    .foregroundStyle(app.appearance.accent)
             }
             .buttonStyle(.plain)
         }
@@ -84,11 +84,11 @@ private struct FolderRowView: View {
             HStack(spacing: 6) {
                 Text(icon)
                     .font(.system(size: isLeaf ? 9 : 8))
-                    .foregroundStyle(isSelected ? app.accent : Theme.dim)
+                    .foregroundStyle(isSelected ? app.appearance.accent : Theme.dim)
                     .frame(width: 11)
                 Text(node.name)
                     .font(.system(size: Theme.fontSize, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? app.accent : Theme.text)
+                    .foregroundStyle(isSelected ? app.appearance.accent : Theme.text)
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Spacer(minLength: 0)
@@ -97,9 +97,9 @@ private struct FolderRowView: View {
             .padding(.trailing, 8)
             .frame(height: Theme.rowHeight)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isSelected ? app.accentSelection : .clear)
+            .background(isSelected ? app.appearance.accentSelection : .clear)
             .overlay(alignment: .leading) {
-                if isSelected { app.accent.frame(width: 2) }
+                if isSelected { app.appearance.accent.frame(width: 2) }
             }
             .contentShape(Rectangle())
         }

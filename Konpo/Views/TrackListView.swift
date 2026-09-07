@@ -10,8 +10,8 @@ struct TrackListView: View {
     // User-adjustable column widths (drag the header dividers). Title and Artist
     // have explicit widths; Album absorbs the remaining space so the total
     // always fits the window — widening a column narrows Album, not the window.
-    @AppStorage("colTitleWidth") private var titleWidth: Double = 260
-    @AppStorage("colArtistWidth") private var artistWidth: Double = 160
+    @AppStorage(Defaults.Key.columnTitleWidth) private var titleWidth: Double = 260
+    @AppStorage(Defaults.Key.columnArtistWidth) private var artistWidth: Double = 160
     @State private var tableWidth: CGFloat = 0
 
     var body: some View {
@@ -83,10 +83,10 @@ struct TrackListView: View {
         return columns(
             num: Text(playing ? "▶" : number)
                 .font(.konpoMono(Theme.fontSize - 1))
-                .foregroundStyle(playing ? app.accent : Theme.dim),
+                .foregroundStyle(playing ? app.appearance.accent : Theme.dim),
             title: Text(track.title)
                 .font(.system(size: Theme.fontSize, weight: playing ? .semibold : .regular))
-                .foregroundStyle(playing ? app.accent : Theme.text),
+                .foregroundStyle(playing ? app.appearance.accent : Theme.text),
             artist: Text(dashed(track.artist))
                 .font(.system(size: Theme.fontSize - 0.5))
                 .foregroundStyle(Theme.muted),
@@ -101,9 +101,9 @@ struct TrackListView: View {
         .padding(.horizontal, Theme.tablePadX)
         .frame(height: Theme.rowHeight)
         .frame(maxWidth: .infinity)
-        .background(playing ? app.accentTint : (selected ? app.highlightSelection : .clear))
+        .background(playing ? app.appearance.accentTint : (selected ? app.appearance.highlightSelection : .clear))
         .overlay(alignment: .leading) {
-            if playing { app.accent.frame(width: 2) }
+            if playing { app.appearance.accent.frame(width: 2) }
         }
         .overlay(alignment: .bottom) { Theme.separator.frame(height: 1) }
         .contentShape(Rectangle())

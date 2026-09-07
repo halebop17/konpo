@@ -9,7 +9,7 @@ struct AlbumGridView: View {
     @Environment(AppModel.self) private var app
     var focus: FocusState<FocusedPane?>.Binding
 
-    @AppStorage("albumHideTree") private var hideTree = false
+    @AppStorage(Defaults.Key.albumHideTree) private var hideTree = false
     @State private var selectedIndex: Int?
     @State private var columnCount = 1
     @FocusState private var searchFocused: Bool
@@ -66,7 +66,7 @@ struct AlbumGridView: View {
             } label: {
                 Image(systemName: "sidebar.left")
                     .font(.system(size: 12))
-                    .foregroundStyle(hideTree ? Theme.muted : app.accent)
+                    .foregroundStyle(hideTree ? Theme.muted : app.appearance.accent)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -118,7 +118,7 @@ struct AlbumGridView: View {
         .background(Theme.sidebar, in: RoundedRectangle(cornerRadius: 6))
         .overlay {
             RoundedRectangle(cornerRadius: 6)
-                .strokeBorder(searchFocused ? app.accent.opacity(0.5) : Theme.separator, lineWidth: 1)
+                .strokeBorder(searchFocused ? app.appearance.accent.opacity(0.5) : Theme.separator, lineWidth: 1)
         }
     }
 
@@ -171,30 +171,30 @@ struct AlbumGridView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .overlay {
                     RoundedRectangle(cornerRadius: 6)
-                        .strokeBorder(playing ? app.accent : Theme.separator, lineWidth: playing ? 2 : 1)
+                        .strokeBorder(playing ? app.appearance.accent : Theme.separator, lineWidth: playing ? 2 : 1)
                 }
                 .overlay(alignment: .bottomLeading) {
                     if playing {
                         Image(systemName: "play.fill")
                             .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(app.onAccent)
+                            .foregroundStyle(app.appearance.onAccent)
                             .padding(4)
-                            .background(app.accent, in: RoundedRectangle(cornerRadius: 4))
+                            .background(app.appearance.accent, in: RoundedRectangle(cornerRadius: 4))
                             .padding(6)
                     }
                 }
             Text(album.name)
                 .font(.system(size: Theme.fontSize, weight: playing ? .semibold : .regular))
-                .foregroundStyle(playing ? app.accent : Theme.text)
+                .foregroundStyle(playing ? app.appearance.accent : Theme.text)
                 .lineLimit(2)
                 .multilineTextAlignment(.leading)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(7)
-        .background(selected ? app.highlightSelection : .clear, in: RoundedRectangle(cornerRadius: 8))
+        .background(selected ? app.appearance.highlightSelection : .clear, in: RoundedRectangle(cornerRadius: 8))
         .overlay {
             if selected {
-                RoundedRectangle(cornerRadius: 8).strokeBorder(app.accent.opacity(0.55), lineWidth: 1.5)
+                RoundedRectangle(cornerRadius: 8).strokeBorder(app.appearance.accent.opacity(0.55), lineWidth: 1.5)
             }
         }
         .contentShape(RoundedRectangle(cornerRadius: 8))

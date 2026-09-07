@@ -76,7 +76,7 @@ struct VisualizerView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { note in
             // When the visualizer window closes, tear the WebView down so its
             // WebContent/GPU/Networking helper processes exit instead of lingering.
-            guard let win = note.object as? NSWindow, win.title == "Visualizer" else { return }
+            guard let win = note.object as? NSWindow, win.isVisualizer else { return }
             app.player.stopVisualizerTap()
             alive = false
         }

@@ -67,7 +67,7 @@ struct KonpoApp: App {
 
         // Optional visualizer — created only when opened, so the base app is
         // unaffected until you ask for it.
-        Window("Visualizer", id: "visualizer") {
+        Window("Visualizer", id: WindowID.visualizer) {
             VisualizerView()
                 .environment(app)
                 .preferredColorScheme(.dark)
@@ -75,7 +75,7 @@ struct KonpoApp: App {
         .defaultSize(width: 900, height: 600)
 
         // Full-size album art — opened by clicking the art panel.
-        Window("Album Art", id: "artwork") {
+        Window("Album Art", id: WindowID.artwork) {
             ArtworkWindowView()
                 .environment(app)
                 .preferredColorScheme(.dark)

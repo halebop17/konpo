@@ -65,14 +65,14 @@ final class PlayerEngine {
         volumePersistTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(400))
             guard self != nil, !Task.isCancelled else { return }
-            UserDefaults.standard.set(value, forKey: "volume")
+            Defaults.volume = value
         }
     }
 
     init() {
         engine.attach(player)
         engine.connect(player, to: engine.mainMixerNode, format: nil)
-        let saved = UserDefaults.standard.object(forKey: "volume") as? Float ?? 0.8
+        let saved = Defaults.volume ?? 0.8
         volume = saved
         NotificationCenter.default.addObserver(
             forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main

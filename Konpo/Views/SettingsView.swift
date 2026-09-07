@@ -10,11 +10,11 @@ struct SettingsView: View {
     ]
 
     var body: some View {
-        @Bindable var app = app
+        @Bindable var appearance = app.appearance
         Form {
             Section {
-                ColorPicker("Accent color", selection: $app.accentColor, supportsOpacity: false)
-                swatchRow(selected: app.accentHex) { app.accentHex = $0 }
+                ColorPicker("Accent color", selection: $appearance.accentColor, supportsOpacity: false)
+                swatchRow(selected: appearance.accentHex) { appearance.accentHex = $0 }
             } footer: {
                 Text("Highlights the playing track, selections, and controls.")
                     .font(.caption)
@@ -22,8 +22,8 @@ struct SettingsView: View {
             }
 
             Section {
-                ColorPicker("2nd accent", selection: $app.accent2Color, supportsOpacity: false)
-                swatchRow(selected: app.accent2Hex) { app.accent2Hex = $0 }
+                ColorPicker("2nd accent", selection: $appearance.accent2Color, supportsOpacity: false)
+                swatchRow(selected: appearance.accent2Hex) { appearance.accent2Hex = $0 }
             } footer: {
                 Text("Marks the keyboard-focus edge when the track list is focused (the folder list uses the primary accent).")
                     .font(.caption)
@@ -31,8 +31,8 @@ struct SettingsView: View {
             }
 
             Section {
-                ColorPicker("Track highlight", selection: $app.highlightColor, supportsOpacity: false)
-                swatchRow(selected: app.highlightHex) { app.highlightHex = $0 }
+                ColorPicker("Track highlight", selection: $appearance.highlightColor, supportsOpacity: false)
+                swatchRow(selected: appearance.highlightHex) { appearance.highlightHex = $0 }
             } footer: {
                 Text("Tints the selected row in the track list.")
                     .font(.caption)
