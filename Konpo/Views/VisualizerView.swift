@@ -175,6 +175,8 @@ private struct VisualizerWebView: NSViewRepresentable {
         private weak var web: WKWebView?
         var folder: String?
         private var loaded = false
+        /// The preset names handed to the page — the only ones it may ask for.
+        private var offeredPresets: Set<String> = []
 
         func start(web: WKWebView, buffer: VisualizerAudioBuffer) {
             self.web = web
@@ -219,11 +221,20 @@ private struct VisualizerWebView: NSViewRepresentable {
 
         /// JS requested a preset by filename — read the .json and push it back
         /// base64-encoded (no fetch, no CORS, no in-app conversion).
+        ///
+        /// The requested name is checked against the list we actually offered.
+        /// The page is local and bundled so nothing untrusted is asking today,
+        /// but this joins a caller-supplied string onto a filesystem path, and
+        /// `appendingPathComponent` will happily accept "../../..".
         func userContentController(_ controller: WKUserContentController,
                                    didReceive message: WKScriptMessage) {
             guard let name = message.body as? String, let folder,
                   let web = message.webView else { return }
             let nameJSON = Self.jsString(name)
+            guard offeredPresets.contains(name) else {
+                web.evaluateJavaScript("window.__recvError(\(nameJSON), 'unknown preset')")
+                return
+            }
             let fileURL = URL(fileURLWithPath: folder, isDirectory: true).appendingPathComponent(name)
             guard let data = try? Data(contentsOf: fileURL) else {
                 web.evaluateJavaScript("window.__recvError(\(nameJSON), 'read failed')")
@@ -237,9 +248,11 @@ private struct VisualizerWebView: NSViewRepresentable {
             guard let folder, let names = Self.presetNames(in: folder), !names.isEmpty,
                   let data = try? JSONEncoder().encode(names),
                   let json = String(data: data, encoding: .utf8) else {
+                offeredPresets = []
                 web.evaluateJavaScript("window.useBuiltinPresets && window.useBuiltinPresets()")
                 return
             }
+            offeredPresets = Set(names)
             web.evaluateJavaScript("window.loadCustomPresets && window.loadCustomPresets(\(json))")
         }
 

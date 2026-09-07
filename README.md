@@ -30,6 +30,9 @@ unless you ask for it.
 - **Plays your local files** — ALAC, AAC/M4A, MP3, FLAC, WAV, AIFF, and more.
 - **Browses your folders as-is** — your on-disk folder structure *is* the library.
   No importing, no scanning your whole drive, no database to babysit.
+- **Album view** — a cover grid of every album under the folder you've selected,
+  with live search. Multi-disc albums are folded into one entry whether they're
+  laid out as `Album/CD1`, `Album/CD2` or as sibling `Album (CD1)` folders.
 - **Gapless playback** — albums mixed to run continuously play with no gap between
   tracks.
 - **Album art** — shows embedded artwork, or a `cover.jpg` / `folder.jpg` sitting
@@ -44,6 +47,23 @@ unless you ask for it.
 - **Media keys & Control Center** — the play/pause and next/previous keys on your
   keyboard work, and the current track shows up in Control Center and on the lock
   screen.
+
+## Three ways to browse
+
+Switch with the **Folders / Albums / Playlists** buttons at the top of the
+sidebar, or with **⌘1**, **⌘2**, **⌘3**.
+
+- **Folders** — the folder tree on the left, that folder's tracks in the middle.
+- **Albums** — a grid of album covers for everything under the folder selected in
+  the tree, so picking *Rock* shows Rock's albums and picking your top-level
+  folder shows all of them. Click an album (or press Return) to play it straight
+  through. Press **⌘F** to jump to the search box and filter by album name. The
+  art panel becomes the album's tracklist while it plays, and the folder tree can
+  be tucked away with the toggle in the top-left of the grid.
+- **Playlists** — your own playlists, in the order you added things.
+
+Multi-disc albums show up as one album with **CD 1** / **CD 2** headers in the
+tracklist, and play through in disc order.
 
 ## Making it yours
 
@@ -87,13 +107,13 @@ track, and start playing without touching the mouse.
 | **↑ / ↓** | Move up and down in whichever list is focused |
 | **→** | In the folder list: open a folder, or jump over to its tracks |
 | **←** | In the folder list: close a folder / go up one · In the track list: jump back to the folders |
-| **Return** | Play the selected track |
+| **Return** | Play the selected track — or, in Album view, play the selected album |
 
 ### Playback
 
 | Key | What it does |
 | --- | --- |
-| **Space** | Play / pause |
+| **Space** | Play / pause (whenever a list or the album grid has focus, so it stays available for typing in the search box) |
 | **⌘→ / ⌘←** | Next / previous track |
 | **⌥⌘→ / ⌥⌘←** | Jump forward / back 10 seconds in the current track |
 
@@ -101,6 +121,8 @@ track, and start playing without touching the mouse.
 
 | Key | What it does |
 | --- | --- |
+| **⌘1 / ⌘2 / ⌘3** | Switch to Folders / Albums / Playlists |
+| **⌘F** | Search albums (in Album view) |
 | **⌘B** | Show / hide the album-art panel |
 | **⇧⌘V** | Open / close the visualizer |
 | **⌘,** | Settings (accent color) |
