@@ -659,7 +659,11 @@ struct DraggableBar: View {
     /// GeometryReader can report 0, and `x / 0` is `NaN`. `min(max(NaN, 0), 1)`
     /// looks like it clamps but propagates the `NaN` — which reaches
     /// `PlayerEngine.seek(to:)` and traps converting it to `AVAudioFramePosition`.
-    static func fraction(of x: CGFloat, in width: CGFloat) -> Double? {
+    /// `nonisolated` because `View` conformance makes the type `@MainActor`, and
+    /// this is pure arithmetic that the tests call from a plain context. Swift 6.0
+    /// (Xcode 16) rejects that call without this; later toolchains happen to
+    /// allow it, which is why it built locally and failed in CI.
+    nonisolated static func fraction(of x: CGFloat, in width: CGFloat) -> Double? {
         guard width > 0, x.isFinite else { return nil }
         return Swift.min(Swift.max(Double(x / width), 0), 1)
     }
