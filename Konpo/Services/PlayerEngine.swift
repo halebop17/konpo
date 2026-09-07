@@ -207,7 +207,18 @@ final class PlayerEngine {
                                completionHandler: completion(url: url, gen: gen))
     }
 
-    private func completion(url: URL, gen: Int) -> AVAudioPlayerNodeCompletionHandler {
+    /// `nonisolated` for the same reason as `tapBlock` below: the completion
+    /// handler is invoked on an engine render thread, so the closure must not be
+    /// main-actor-isolated. Building it inside a `@MainActor` method would infer
+    /// that isolation and then launder it through AVFoundation's `@Sendable`
+    /// parameter — exactly the mismatch the runtime traps on.
+    ///
+    /// The return type is spelled out rather than using
+    /// `AVAudioPlayerNodeCompletionHandler`, because that typealias is not
+    /// `@Sendable` and the conversion at the call site is what Swift 6 flags.
+    nonisolated private func completion(
+        url: URL, gen: Int
+    ) -> @Sendable (AVAudioPlayerNodeCompletionCallbackType) -> Void {
         { [weak self] _ in Task { @MainActor in self?.handleCompletion(url: url, gen: gen) } }
     }
 

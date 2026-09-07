@@ -178,16 +178,22 @@ private struct VisualizerWebView: NSViewRepresentable {
 
         func start(web: WKWebView, buffer: VisualizerAudioBuffer) {
             self.web = web
+            // The timer is added to the main run loop below, so it always fires on
+            // the main actor — but the block type is @Sendable and therefore
+            // nonisolated, so touching the (main-actor) WKWebView needs the
+            // isolation asserted explicitly.
             let timer = Timer(timeInterval: 1.0 / 50.0, repeats: true) { [weak web] _ in
-                guard let web else { return }
-                let samples = buffer.drain()
-                guard !samples.isEmpty else { return }
-                var ints = [Int16](repeating: 0, count: samples.count)
-                for i in 0..<samples.count {
-                    ints[i] = Int16(max(-1, min(1, samples[i])) * 32767)
+                MainActor.assumeIsolated {
+                    guard let web else { return }
+                    let samples = buffer.drain()
+                    guard !samples.isEmpty else { return }
+                    var ints = [Int16](repeating: 0, count: samples.count)
+                    for i in 0..<samples.count {
+                        ints[i] = Int16(max(-1, min(1, samples[i])) * 32767)
+                    }
+                    let b64 = ints.withUnsafeBytes { Data($0) }.base64EncodedString()
+                    web.evaluateJavaScript("window.pushAudio && window.pushAudio('\(b64)')")
                 }
-                let b64 = ints.withUnsafeBytes { Data($0) }.base64EncodedString()
-                web.evaluateJavaScript("window.pushAudio && window.pushAudio('\(b64)')")
             }
             RunLoop.main.add(timer, forMode: .common)
             self.timer = timer
