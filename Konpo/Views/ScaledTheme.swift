@@ -52,6 +52,10 @@ struct ScaledThemeProvider: ViewModifier {
         content.environment(\.scaled, ScaledTheme(scale: Self.clamp(probe / 100)))
     }
 
+    /// nonisolated because ViewModifier is implicitly @MainActor under Swift 6.0
+    /// (the CI toolchain), which would put these statics out of reach of the
+    /// tests. They are pure arithmetic.
+    ///
     /// The design's own sizes are the floor, and 1.15 is the ceiling — measured,
     /// not guessed. Screenshots at each step: 1.15 holds everything; by 1.25 the
     /// sidebar header clips, the ARTIST/ALBUM column headings wrap mid-word, the
@@ -62,9 +66,9 @@ struct ScaledThemeProvider: ViewModifier {
     /// can drop, a sidebar that sizes to its content, an art panel that can
     /// collapse — which is a design change, not a scaling one. Until then,
     /// stopping early is better than clipping.
-    static let maxScale: CGFloat = 1.15
+    nonisolated static let maxScale: CGFloat = 1.15
 
-    static func clamp(_ raw: CGFloat) -> CGFloat {
+    nonisolated static func clamp(_ raw: CGFloat) -> CGFloat {
         guard raw.isFinite else { return 1 }
         return min(max(raw, 1), maxScale)
     }
