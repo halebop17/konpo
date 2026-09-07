@@ -6,8 +6,19 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		KA000000000000000000001A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = KA000000000000000000000A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = KA0000000000000000000005;
+			remoteInfo = Konpo;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		KA0000000000000000000004 /* Konpo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Konpo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		KA0000000000000000000010 /* KonpoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = KonpoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -16,10 +27,22 @@
 			path = Konpo;
 			sourceTree = "<group>";
 		};
+		KA0000000000000000000011 /* KonpoTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = KonpoTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		KA0000000000000000000008 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		KA0000000000000000000014 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -33,6 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				KA0000000000000000000001 /* Konpo */,
+				KA0000000000000000000011 /* KonpoTests */,
 				KA0000000000000000000003 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +65,7 @@
 			isa = PBXGroup;
 			children = (
 				KA0000000000000000000004 /* Konpo.app */,
+				KA0000000000000000000010 /* KonpoTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -70,6 +95,29 @@
 			productReference = KA0000000000000000000004 /* Konpo.app */;
 			productType = "com.apple.product-type.application";
 		};
+		KA0000000000000000000012 /* KonpoTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = KA0000000000000000000016 /* Build configuration list for PBXNativeTarget "KonpoTests" */;
+			buildPhases = (
+				KA0000000000000000000013 /* Sources */,
+				KA0000000000000000000014 /* Frameworks */,
+				KA0000000000000000000015 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				KA0000000000000000000019 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				KA0000000000000000000011 /* KonpoTests */,
+			);
+			name = KonpoTests;
+			packageProductDependencies = (
+			);
+			productName = KonpoTests;
+			productReference = KA0000000000000000000010 /* KonpoTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -82,6 +130,10 @@
 				TargetAttributes = {
 					KA0000000000000000000005 = {
 						CreatedOnToolsVersion = 16.0;
+					};
+					KA0000000000000000000012 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = KA0000000000000000000005;
 					};
 				};
 			};
@@ -100,12 +152,20 @@
 			projectRoot = "";
 			targets = (
 				KA0000000000000000000005 /* Konpo */,
+				KA0000000000000000000012 /* KonpoTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		KA0000000000000000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		KA0000000000000000000015 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -122,7 +182,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		KA0000000000000000000013 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		KA0000000000000000000019 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = KA0000000000000000000005 /* Konpo */;
+			targetProxy = KA000000000000000000001A /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		KA000000000000000000000C /* Debug */ = {
@@ -185,7 +260,11 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
+				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Konpo needs access to play music stored on your Desktop.";
+				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "Konpo needs access to play music stored in your Documents folder.";
+				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Konpo needs access to play music stored in your Downloads folder.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSRemovableVolumesUsageDescription = "Konpo needs access to play music stored on external drives.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -210,7 +289,11 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.music";
+				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Konpo needs access to play music stored on your Desktop.";
+				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "Konpo needs access to play music stored in your Documents folder.";
+				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Konpo needs access to play music stored in your Downloads folder.";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSRemovableVolumesUsageDescription = "Konpo needs access to play music stored on external drives.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -220,6 +303,40 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		KA0000000000000000000017 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.scholvien.konpo.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Konpo.app/Contents/MacOS/Konpo";
+			};
+			name = Debug;
+		};
+		KA0000000000000000000018 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.scholvien.konpo.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Konpo.app/Contents/MacOS/Konpo";
 			};
 			name = Release;
 		};
@@ -240,6 +357,15 @@
 			buildConfigurations = (
 				KA000000000000000000000C /* Debug */,
 				KA000000000000000000000D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		KA0000000000000000000016 /* Build configuration list for PBXNativeTarget "KonpoTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				KA0000000000000000000017 /* Debug */,
+				KA0000000000000000000018 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

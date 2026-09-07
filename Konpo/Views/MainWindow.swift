@@ -9,17 +9,20 @@ enum FocusedPane: Hashable { case folders, tracks }
 struct MainWindow: View {
     @Environment(AppModel.self) private var app
     @Environment(\.openWindow) private var openWindow
-    @AppStorage("showArtPanel") private var showPanel = true
-    @AppStorage("sidebarWidth") private var sidebarWidth: Double = 210
+    @Environment(\.dismissWindow) private var dismissWindow
+    @AppStorage(Defaults.Key.showArtPanel) private var showPanel = true
+    @AppStorage(Defaults.Key.sidebarWidth) private var sidebarWidth: Double = 210
     /// Album-art panel width preset: 0 = small, 1 = medium, 2 = large.
-    @AppStorage("artPanelSize") private var artPanelSize: Int = 1
+    @AppStorage(Defaults.Key.artPanelSize) private var artPanelSize: Int = 1
+    /// Hide the folder tree in album view (shared with AlbumGridView's toggle).
+    @AppStorage(Defaults.Key.albumHideTree) private var hideTree = false
     @State private var dragStartWidth: Double?
     /// Non-nil while scrubbing the seek bar (seconds), so the elapsed label and
     /// fill track the drag instead of the live playhead.
     @State private var scrubSeconds: Double?
     @FocusState private var focus: FocusedPane?
 
-    private static let minSidebar: Double = 150
+    private static let minSidebar: Double = 176
     private static let maxSidebar: Double = 420
     private static let artSizes: [CGFloat] = [212, 260, 344]
     private var artPanelWidth: CGFloat { Self.artSizes[max(0, min(2, artPanelSize))] }
@@ -28,11 +31,13 @@ struct MainWindow: View {
         @Bindable var app = app
         return VStack(spacing: 0) {
             HStack(spacing: 0) {
-                SidebarView(focus: $focus)
-                    .frame(width: sidebarWidth)
-                    .overlay(alignment: .trailing) { focusEdge(.folders) }
-                sidebarDivider
-                TrackListView(focus: $focus)
+                if !treeHidden {
+                    SidebarView(focus: $focus)
+                        .frame(width: sidebarWidth)
+                        .overlay(alignment: .trailing) { focusEdge(.folders) }
+                    sidebarDivider
+                }
+                centerPane
                     .overlay(alignment: .leading) { focusEdge(.tracks) }
                 if showPanel {
                     artPanel
@@ -40,6 +45,7 @@ struct MainWindow: View {
                 }
             }
             .frame(maxHeight: .infinity)
+            .animation(.easeInOut(duration: 0.18), value: treeHidden)
             transportBar
         }
         .onAppear { if focus == nil { focus = .tracks } }
@@ -73,7 +79,7 @@ struct MainWindow: View {
                     showPanel.toggle()
                 } label: {
                     Image(systemName: "sidebar.trailing")
-                        .foregroundStyle(showPanel ? app.accent : Theme.muted)
+                        .foregroundStyle(showPanel ? app.appearance.accent : Theme.muted)
                 }
                 .help("Toggle album art panel (⌘B)")
                 .keyboardShortcut("b", modifiers: .command)
@@ -96,7 +102,7 @@ struct MainWindow: View {
         if let message = app.errorMessage {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(app.accent)
+                    .foregroundStyle(app.appearance.accent)
                 Text(message)
                     .foregroundStyle(Theme.text)
             }
@@ -111,23 +117,37 @@ struct MainWindow: View {
         }
     }
 
+    /// The folder tree is only hideable in album view (its own toggle).
+    private var treeHidden: Bool { app.viewMode == .albums && hideTree }
+
+    /// The center pane: the album grid in album view, otherwise the track list.
+    @ViewBuilder private var centerPane: some View {
+        if app.viewMode == .albums {
+            AlbumGridView(focus: $focus)
+        } else {
+            TrackListView(focus: $focus)
+        }
+    }
+
     // MARK: - Keyboard focus
 
     /// A subtle dotted line on the inner edge of whichever pane the keyboard is
     /// driving — primary accent for folders, second accent for the track list.
     @ViewBuilder private func focusEdge(_ pane: FocusedPane) -> some View {
         if focus == pane {
-            DottedEdge(color: pane == .folders ? app.accent : app.accent2)
+            DottedEdge(color: pane == .folders ? app.appearance.accent : app.appearance.accent2)
                 .frame(width: 2)
                 .transition(.opacity)
         }
     }
 
+    /// Matching on the window's *title* would break the moment the app is
+    /// localized, so identify the scene by its id instead.
     private func toggleVisualizer() {
-        if let win = NSApp.windows.first(where: { $0.title == "Visualizer" && $0.isVisible }) {
-            win.close()
+        if NSApp.windows.contains(where: { $0.isVisualizer && $0.isVisible }) {
+            dismissWindow(id: WindowID.visualizer)
         } else {
-            openWindow(id: "visualizer")
+            openWindow(id: WindowID.visualizer)
         }
     }
 
@@ -160,14 +180,21 @@ struct MainWindow: View {
     /// Compact window title: no app name, no full path — just the current
     /// track (or folder) and one folder level back, e.g. "CD1/Down Town".
     private var titlePath: String {
-        if app.sidebarMode == .playlists {
+        if app.viewMode == .playlists {
             if let playlist = app.selectedPlaylist { return "♪ \(playlist.name)" }
             return "Playlists"
         }
         if let track = displayTrack {
-            // "<folder> - <artist> - <title>", dropping any empty piece.
-            let parent = track.url.deletingLastPathComponent().lastPathComponent
-            let parts = [parent, track.artist, track.title].filter { !$0.isEmpty }
+            // "<context> - <artist> - <title>", dropping any empty piece. In album
+            // view the context is the album name (so a multi-disc album reads as one
+            // album, not "…(CD1)"); otherwise it's the track's folder.
+            let context: String
+            if app.viewMode == .albums, let album = app.playingAlbum {
+                context = album.name
+            } else {
+                context = track.url.deletingLastPathComponent().lastPathComponent
+            }
+            let parts = [context, track.artist, track.title].filter { !$0.isEmpty }
             return parts.joined(separator: " - ")
         }
         if let folder = app.selectedFolder {
@@ -200,28 +227,58 @@ struct MainWindow: View {
     private func openArtworkFullSize() {
         guard let url = displayTrack?.url else { return }
         app.artworkFullURL = url
-        openWindow(id: "artwork")
+        openWindow(id: WindowID.artwork)
     }
 
     private var artPanel: some View {
         VStack(spacing: 0) {
-            ScrollView(.vertical, showsIndicators: false) {
+            // In album view the panel shows the playing album's tracklist under
+            // the cover; elsewhere it shows the selected track's tag/format info.
+            if app.viewMode == .albums {
+                albumPanel
+            } else {
+                infoPanel
+            }
+            // Size control pinned to the bottom so the album art stays anchored
+            // at the top of the panel.
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
+                artSizeDots
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 9)
+            .overlay(alignment: .top) { Theme.separator.frame(height: 1) }
+        }
+        .frame(width: artPanelWidth)
+        .background(Theme.panel)
+    }
+
+    /// The album cover — shared by both panel layouts. In album view it resolves
+    /// art at the album-folder level so a multi-disc cover still shows.
+    private var panelCover: some View {
+        AlbumArtView(url: displayTrack?.url, albumFolder: app.playingAlbum?.folderURL, maxPixel: 900)
+            .aspectRatio(1, contentMode: .fit)
+            .frame(maxWidth: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .overlay {
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(Theme.separator, lineWidth: 1)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 6))
+            .onTapGesture { openArtworkFullSize() }
+            .onHover { hovering in
+                guard displayTrack != nil else { return }
+                if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+            }
+            .help("Open album art full size")
+    }
+
+    // MARK: Non-album panel — selected-track tag/format info
+
+    private var infoPanel: some View {
+        ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
-                AlbumArtView(url: displayTrack?.url, maxPixel: 900)
-                    .aspectRatio(1, contentMode: .fit)
-                    .frame(maxWidth: .infinity)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 6)
-                            .strokeBorder(Theme.separator, lineWidth: 1)
-                    }
-                    .contentShape(RoundedRectangle(cornerRadius: 6))
-                    .onTapGesture { openArtworkFullSize() }
-                    .onHover { hovering in
-                        guard displayTrack != nil else { return }
-                        if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-                    }
-                    .help("Open album art full size")
+                panelCover
                 Text(displayTrack?.title ?? "No selection")
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(displayTrack == nil ? Theme.muted : Theme.text)
@@ -246,20 +303,123 @@ struct MainWindow: View {
                 .padding(.top, 14)
             }
             .padding(16)
+        }
+        .frame(maxHeight: .infinity)
+    }
+
+    // MARK: Album panel — cover + the playing album's tracklist
+
+    private var albumPanel: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
+                panelCover
+                Text(app.playingAlbum?.name ?? "No album playing")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(app.playingAlbum == nil ? Theme.muted : Theme.text)
+                    .lineLimit(2)
+                    .padding(.top, 14)
+                if app.playingAlbum != nil, let artist = displayTrack?.artist, !artist.isEmpty {
+                    Text(artist)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.muted)
+                        .padding(.top, 3)
+                }
+            }
+            .padding(16)
+            albumTrackList
+        }
+    }
+
+    @ViewBuilder private var albumTrackList: some View {
+        if let album = app.playingAlbum, !app.tracks.isEmpty {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(album.discs.enumerated()), id: \.offset) { pair in
+                            discSection(pair.element, showHeader: album.isMultiDisc)
+                        }
+                    }
+                }
+                .onChange(of: app.nowPlaying?.url) { _, url in
+                    if let url { withAnimation(.linear(duration: 0.1)) { proxy.scrollTo(url, anchor: .center) } }
+                }
             }
             .frame(maxHeight: .infinity)
-            // Size control pinned to the bottom so the album art stays anchored
-            // at the top of the panel.
-            HStack(spacing: 0) {
-                Spacer(minLength: 0)
-                artSizeDots
-                Spacer(minLength: 0)
-            }
-            .padding(.vertical, 9)
             .overlay(alignment: .top) { Theme.separator.frame(height: 1) }
+        } else {
+            Text("Play an album to see its tracks")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.muted)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .overlay(alignment: .top) { Theme.separator.frame(height: 1) }
         }
-        .frame(width: artPanelWidth)
-        .background(Theme.panel)
+    }
+
+    @ViewBuilder private func discSection(_ disc: AlbumDisc, showHeader: Bool) -> some View {
+        if showHeader, let label = disc.label {
+            discHeader(label)
+        }
+        ForEach(Array(tracksForDisc(disc).enumerated()), id: \.element.id) { pair in
+            panelTrackRow(track: pair.element, fallback: pair.offset + 1).id(pair.element.url)
+        }
+    }
+
+    /// The loaded tracks belonging to a disc, in the album's sorted order.
+    private func tracksForDisc(_ disc: AlbumDisc) -> [Track] {
+        let urls = Set(disc.trackURLs)
+        return app.tracks.filter { urls.contains($0.url) }
+    }
+
+    private func discHeader(_ label: String) -> some View {
+        HStack(spacing: 8) {
+            Text(label)
+                .font(.system(size: 10, weight: .semibold))
+                .kerning(0.6)
+                .foregroundStyle(Theme.dim)
+            Theme.separator.frame(height: 1)
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 12)
+        .padding(.bottom, 5)
+    }
+
+    /// A compact track row for the album panel. Double-click plays (the album is
+    /// already the queue), single-click selects. `fallback` is the 1-based position
+    /// within the disc, used when a track has no track-number tag.
+    private func panelTrackRow(track: Track, fallback: Int) -> some View {
+        let playing = app.nowPlaying?.url == track.url
+        let selected = app.selectedTrack?.url == track.url
+        let number = track.trackNumber.map { String($0) } ?? "\(fallback)"
+        return HStack(spacing: 8) {
+            Text(playing ? "▶" : number)
+                .font(.konpoMono(11))
+                .foregroundStyle(playing ? app.appearance.accent : Theme.dim)
+                .frame(width: 20, alignment: .trailing)
+            Text(track.title)
+                .font(.system(size: 12, weight: playing ? .semibold : .regular))
+                .foregroundStyle(playing ? app.appearance.accent : Theme.text)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 4)
+            Text(track.durationText)
+                .font(.konpoMono(10.5))
+                .foregroundStyle(Theme.muted)
+        }
+        .padding(.horizontal, 14)
+        .frame(height: Theme.rowHeight)
+        .frame(maxWidth: .infinity)
+        .background(playing ? app.appearance.accentTint : (selected ? app.appearance.highlightSelection : .clear))
+        .overlay(alignment: .leading) { if playing { app.appearance.accent.frame(width: 2) } }
+        .overlay(alignment: .bottom) { Theme.separator.frame(height: 1) }
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) { app.play(track) }
+        .onTapGesture(count: 1) { app.selectedTrack = track }
+        .help(track.title)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(number). \(track.title)")
+        .accessibilityValue(playing ? "Now playing, \(track.durationText)" : track.durationText)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { app.play(track) }
     }
 
     /// Three dots (small → large) that pick the art-panel width preset.
@@ -267,7 +427,7 @@ struct MainWindow: View {
         HStack(spacing: 6) {
             ForEach(0..<3, id: \.self) { i in
                 Circle()
-                    .fill(i == artPanelSize ? app.accent : Theme.dim)
+                    .fill(i == artPanelSize ? app.appearance.accent : Theme.dim)
                     .frame(width: CGFloat(5 + i * 2), height: CGFloat(5 + i * 2))
                     .frame(width: 16, height: 16)
                     .contentShape(Rectangle())
@@ -341,22 +501,23 @@ struct MainWindow: View {
                     }
             }
             HStack(spacing: 10) {
-                transportButton("backward.end.fill") { app.playPrevious() }
+                transportButton("backward.end.fill", label: "Previous track") { app.playPrevious() }
                 Button {
                     app.playPause()
                 } label: {
                     Circle()
-                        .fill(app.accent)
+                        .fill(app.appearance.accent)
                         .frame(width: 38, height: 38)
                         .overlay {
                             Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                                 .font(.system(size: 16, weight: .bold))
-                                .foregroundStyle(app.onAccent)
+                                .foregroundStyle(app.appearance.onAccent)
                         }
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
-                transportButton("forward.end.fill") { app.playNext() }
+                .accessibilityLabel(isPlaying ? "Pause" : "Play")
+                transportButton("forward.end.fill", label: "Next track") { app.playNext() }
             }
             // The title hugs its text (no reserved block), so the greedy seek
             // bar to its right soaks up all remaining width — the bar grows with
@@ -372,8 +533,12 @@ struct MainWindow: View {
                 Text(timeString(displaySeconds))
                     .font(.konpoMono(11))
                     .foregroundStyle(Theme.muted)
-                DraggableBar(fraction: fraction, fillColor: app.accent, showKnob: true,
+                DraggableBar(fraction: fraction, fillColor: app.appearance.accent, showKnob: true,
                     hitHeight: 30,
+                    accessibilityLabel: "Playback position",
+                    accessibilityValue: duration > 0
+                        ? "\(timeString(displaySeconds)) of \(timeString(duration))"
+                        : "Nothing playing",
                     onScrub: { frac in
                         if duration > 0 { scrubSeconds = frac * duration }
                     },
@@ -395,8 +560,11 @@ struct MainWindow: View {
                 Image(systemName: "speaker.wave.2.fill")
                     .font(.system(size: 13))
                     .foregroundStyle(Theme.muted)
+                    .accessibilityHidden(true)
                 DraggableBar(fraction: Double(app.player.volume), fillColor: Theme.muted, showKnob: false,
                     hitHeight: 22,
+                    accessibilityLabel: "Volume",
+                    accessibilityValue: "\(Int((app.player.volume * 100).rounded())) percent",
                     onScrub: { frac in app.player.volume = Float(frac) },
                     onCommit: { frac in app.player.volume = Float(frac) })
             }
@@ -408,7 +576,8 @@ struct MainWindow: View {
         .overlay(alignment: .top) { Theme.separator.frame(height: 1) }
     }
 
-    private func transportButton(_ systemName: String, action: @escaping () -> Void) -> some View {
+    private func transportButton(_ systemName: String, label: LocalizedStringKey,
+                                 action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 15))
@@ -417,23 +586,29 @@ struct MainWindow: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 
-    private func timeString(_ seconds: Double) -> String {
-        guard seconds.isFinite, seconds >= 0 else { return "0:00" }
-        let total = Int(seconds)
-        return String(format: "%d:%02d", total / 60, total % 60)
-    }
+    private func timeString(_ seconds: Double) -> String { TimeFormat.string(seconds) }
 }
 
 /// A controlled progress/volume bar: click or drag to set. The visible track is
 /// thin (4pt) but the clickable band fills `hitHeight`, so clicks slightly above
 /// or below the line still register. `fraction` is owned by the parent.
-private struct DraggableBar: View {
+///
+/// Internal rather than private so `fraction(of:in:)` can be unit tested — the
+/// clamping there guards a real crash, not just a visual glitch.
+struct DraggableBar: View {
     var fraction: Double
     var fillColor: Color
     var showKnob: Bool
     var hitHeight: CGFloat = 22
+    /// VoiceOver label and spoken value — without these the bar is an unlabelled,
+    /// unoperable blob, which is what both the seek and volume controls were.
+    var accessibilityLabel: LocalizedStringKey
+    var accessibilityValue: String
+    /// How far one VoiceOver increment/decrement moves the bar.
+    var step: Double = 0.05
     var onScrub: (Double) -> Void
     var onCommit: (Double) -> Void
 
@@ -457,14 +632,36 @@ private struct DraggableBar: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
-                        onScrub(min(max(value.location.x / width, 0), 1))
+                        if let f = Self.fraction(of: value.location.x, in: width) { onScrub(f) }
                     }
                     .onEnded { value in
-                        onCommit(min(max(value.location.x / width, 0), 1))
+                        if let f = Self.fraction(of: value.location.x, in: width) { onCommit(f) }
                     }
             )
         }
         .frame(height: hitHeight)
+        .accessibilityElement()
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityValue(accessibilityValue)
+        .accessibilityAdjustableAction { direction in
+            let clamped = Swift.min(Swift.max(fraction, 0), 1)
+            switch direction {
+            case .increment: onCommit(Swift.min(clamped + step, 1))
+            case .decrement: onCommit(Swift.max(clamped - step, 0))
+            @unknown default: break
+            }
+        }
+    }
+
+    /// Drag position → 0…1, or nil when the bar has no width to divide by.
+    ///
+    /// The zero-width case is not theoretical: during the first layout pass the
+    /// GeometryReader can report 0, and `x / 0` is `NaN`. `min(max(NaN, 0), 1)`
+    /// looks like it clamps but propagates the `NaN` — which reaches
+    /// `PlayerEngine.seek(to:)` and traps converting it to `AVAudioFramePosition`.
+    static func fraction(of x: CGFloat, in width: CGFloat) -> Double? {
+        guard width > 0, x.isFinite else { return nil }
+        return Swift.min(Swift.max(Double(x / width), 0), 1)
     }
 }
 

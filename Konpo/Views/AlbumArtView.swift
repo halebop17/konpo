@@ -5,6 +5,10 @@ import AppKit
 /// off the main actor. Shows a music-note placeholder when there's none.
 struct AlbumArtView: View {
     let url: URL?
+    /// When set, artwork resolves at the album-folder level (cover image first,
+    /// then `url`'s embedded art) — for album-grid cells, where a multi-disc
+    /// cover lives beside the disc folders rather than inside them.
+    var albumFolder: URL? = nil
     var maxPixel: Int = 600
 
     @Environment(AppModel.self) private var app
@@ -35,13 +39,19 @@ struct AlbumArtView: View {
                 }
             }
             .clipped()
-            .task(id: url) { await load() }
+            .task(id: [albumFolder?.absoluteString, url?.absoluteString]) { await load() }
     }
 
     private func load() async {
         image = nil
-        guard let url else { return }
-        let data = await app.metadata.artworkData(for: url, maxPixel: maxPixel)
+        let data: Data?
+        if let albumFolder {
+            data = await app.metadata.albumArtworkData(folder: albumFolder, track: url, maxPixel: maxPixel)
+        } else if let url {
+            data = await app.metadata.artworkData(for: url, maxPixel: maxPixel)
+        } else {
+            return
+        }
         if Task.isCancelled { return }
         if let data, let img = NSImage(data: data) { image = img }
     }

@@ -53,7 +53,7 @@ struct FolderTreeView: View {
             } label: {
                 Text("Open Folder…  ⌘O")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(app.accent)
+                    .foregroundStyle(app.appearance.accent)
             }
             .buttonStyle(.plain)
         }
@@ -82,13 +82,16 @@ private struct FolderRowView: View {
             }
         } label: {
             HStack(spacing: 6) {
+                // Decorative: VoiceOver gets the same information from the value
+                // below, rather than reading out "▾".
                 Text(icon)
                     .font(.system(size: isLeaf ? 9 : 8))
-                    .foregroundStyle(isSelected ? app.accent : Theme.dim)
+                    .foregroundStyle(isSelected ? app.appearance.accent : Theme.dim)
                     .frame(width: 11)
+                    .accessibilityHidden(true)
                 Text(node.name)
                     .font(.system(size: Theme.fontSize, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? app.accent : Theme.text)
+                    .foregroundStyle(isSelected ? app.appearance.accent : Theme.text)
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Spacer(minLength: 0)
@@ -97,14 +100,24 @@ private struct FolderRowView: View {
             .padding(.trailing, 8)
             .frame(height: Theme.rowHeight)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isSelected ? app.accentSelection : .clear)
+            .background(isSelected ? app.appearance.accentSelection : .clear)
             .overlay(alignment: .leading) {
-                if isSelected { app.accent.frame(width: 2) }
+                if isSelected { app.appearance.accent.frame(width: 2) }
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .contextMenu { folderMenu }
+        .accessibilityLabel(node.name)
+        .accessibilityValue(accessibilityState)
+        .accessibilityHint("Shows this folder's tracks")
+    }
+
+    /// Folder / album-folder, and open or closed — all of which the row otherwise
+    /// conveys only through a ▸ ▾ ♪ glyph.
+    private var accessibilityState: String {
+        if isLeaf { return "Album folder" }
+        return node.isExpanded ? "Folder, expanded" : "Folder, collapsed"
     }
 
     @ViewBuilder private var folderMenu: some View {

@@ -18,9 +18,29 @@ struct KonpoApp: App {
                 Button("Refresh") { app.refresh() }
                     .keyboardShortcut("r", modifiers: .command)
             }
+            CommandMenu("View") {
+                Button("Folders") { app.setViewMode(.folders) }
+                    .keyboardShortcut("1", modifiers: .command)
+                Button("Albums") { app.setViewMode(.albums) }
+                    .keyboardShortcut("2", modifiers: .command)
+                Button("Playlists") { app.setViewMode(.playlists) }
+                    .keyboardShortcut("3", modifiers: .command)
+                Divider()
+                Button("Find Albums") {
+                    app.setViewMode(.albums)
+                    app.albumSearchFocusRequest += 1
+                }
+                .keyboardShortcut("f", modifiers: .command)
+            }
             CommandMenu("Playback") {
+                // Space is deliberately NOT a menu key equivalent. AppKit matches
+                // main-menu key equivalents before the event reaches the key
+                // window's first responder, so a no-modifier Space here would be
+                // swallowed by the menu instead of typed into the album search
+                // field (⌘F) or the New Playlist name field. The focusable panes
+                // handle Space themselves via .onKeyPress, which keeps play/pause
+                // on Space everywhere it makes sense and leaves text fields alone.
                 Button(app.player.state == .playing ? "Pause" : "Play") { app.playPause() }
-                    .keyboardShortcut(.space, modifiers: [])
                 // Return is handled contextually by the focused list (play the
                 // selected track / jump into the track list), so no menu shortcut.
                 Button("Play Selected") { app.playSelected() }
@@ -47,7 +67,7 @@ struct KonpoApp: App {
 
         // Optional visualizer — created only when opened, so the base app is
         // unaffected until you ask for it.
-        Window("Visualizer", id: "visualizer") {
+        Window("Visualizer", id: WindowID.visualizer) {
             VisualizerView()
                 .environment(app)
                 .preferredColorScheme(.dark)
@@ -55,7 +75,7 @@ struct KonpoApp: App {
         .defaultSize(width: 900, height: 600)
 
         // Full-size album art — opened by clicking the art panel.
-        Window("Album Art", id: "artwork") {
+        Window("Album Art", id: WindowID.artwork) {
             ArtworkWindowView()
                 .environment(app)
                 .preferredColorScheme(.dark)
