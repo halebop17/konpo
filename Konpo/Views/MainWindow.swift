@@ -189,7 +189,7 @@ struct MainWindow: View {
             // view the context is the album name (so a multi-disc album reads as one
             // album, not "…(CD1)"); otherwise it's the track's folder.
             let context: String
-            if app.viewMode == .albums, let album = app.playingAlbum {
+            if app.viewMode == .albums, let album = app.albums.playing {
                 context = album.name
             } else {
                 context = track.url.deletingLastPathComponent().lastPathComponent
@@ -256,7 +256,7 @@ struct MainWindow: View {
     /// The album cover — shared by both panel layouts. In album view it resolves
     /// art at the album-folder level so a multi-disc cover still shows.
     private var panelCover: some View {
-        AlbumArtView(url: displayTrack?.url, albumFolder: app.playingAlbum?.folderURL, maxPixel: 900)
+        AlbumArtView(url: displayTrack?.url, albumFolder: app.albums.playing?.folderURL, maxPixel: 900)
             .aspectRatio(1, contentMode: .fit)
             .frame(maxWidth: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: 6))
@@ -313,12 +313,12 @@ struct MainWindow: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
                 panelCover
-                Text(app.playingAlbum?.name ?? "No album playing")
+                Text(app.albums.playing?.name ?? "No album playing")
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(app.playingAlbum == nil ? Theme.muted : Theme.text)
+                    .foregroundStyle(app.albums.playing == nil ? Theme.muted : Theme.text)
                     .lineLimit(2)
                     .padding(.top, 14)
-                if app.playingAlbum != nil, let artist = displayTrack?.artist, !artist.isEmpty {
+                if app.albums.playing != nil, let artist = displayTrack?.artist, !artist.isEmpty {
                     Text(artist)
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.muted)
@@ -331,12 +331,17 @@ struct MainWindow: View {
     }
 
     @ViewBuilder private var albumTrackList: some View {
-        if let album = app.playingAlbum, !app.tracks.isEmpty {
+        if let album = app.albums.playing, !app.tracks.isEmpty {
+            // Grouped once per render rather than re-filtering every loaded
+            // track for each disc in turn.
+            let grouped = tracksByDisc(album)
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(Array(album.discs.enumerated()), id: \.offset) { pair in
-                            discSection(pair.element, showHeader: album.isMultiDisc)
+                            discSection(pair.element,
+                                        tracks: grouped[pair.offset] ?? [],
+                                        showHeader: album.isMultiDisc)
                         }
                     }
                 }
@@ -355,19 +360,32 @@ struct MainWindow: View {
         }
     }
 
-    @ViewBuilder private func discSection(_ disc: AlbumDisc, showHeader: Bool) -> some View {
+    @ViewBuilder private func discSection(_ disc: AlbumDisc, tracks: [Track],
+                                          showHeader: Bool) -> some View {
         if showHeader, let label = disc.label {
             discHeader(label)
         }
-        ForEach(Array(tracksForDisc(disc).enumerated()), id: \.element.id) { pair in
+        ForEach(Array(tracks.enumerated()), id: \.element.id) { pair in
             panelTrackRow(track: pair.element, fallback: pair.offset + 1).id(pair.element.url)
         }
     }
 
-    /// The loaded tracks belonging to a disc, in the album's sorted order.
-    private func tracksForDisc(_ disc: AlbumDisc) -> [Track] {
-        let urls = Set(disc.trackURLs)
-        return app.tracks.filter { urls.contains($0.url) }
+    /// The loaded tracks split by disc index, in the album's sorted order.
+    ///
+    /// One pass over `app.tracks` for the whole album instead of one filter per
+    /// disc — the previous shape was O(discs × tracks) on every render of the
+    /// panel, including every render caused by the playhead moving.
+    private func tracksByDisc(_ album: Album) -> [Int: [Track]] {
+        var discOf: [URL: Int] = [:]
+        for (index, disc) in album.discs.enumerated() {
+            for url in disc.trackURLs { discOf[url] = index }
+        }
+        var grouped: [Int: [Track]] = [:]
+        for track in app.tracks {
+            guard let index = discOf[track.url] else { continue }
+            grouped[index, default: []].append(track)
+        }
+        return grouped
     }
 
     private func discHeader(_ label: String) -> some View {

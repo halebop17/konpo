@@ -11,6 +11,7 @@ final class AppModel {
     let metadata = MetadataService()
     let playlists = PlaylistStore()
     let appearance = Appearance()
+    let albums = AlbumsModel()
     @ObservationIgnored let nowPlayingService = NowPlayingService()
 
     /// The three top-level views: the folder tree + track list, the album grid,
@@ -33,22 +34,6 @@ final class AppModel {
     var showNewPlaylistPrompt = false
     var newPlaylistName = ""
 
-    // Album grid
-    var albums: [Album] = []
-    var isLoadingAlbums = false
-    /// The album whose tracks are currently loaded (played from the grid). Drives
-    /// the album-view art panel's header/tracklist; nil when the loaded tracks
-    /// came from a folder or playlist instead.
-    var playingAlbum: Album?
-    /// Live filter text for the album grid.
-    var albumSearchText = ""
-    /// Bumped by the Find command (⌘F) to ask the grid to focus its search field.
-    var albumSearchFocusRequest = 0
-    private var albumsTask: Task<Void, Never>?
-    /// Discovered albums per folder scope. Bounded because each entry holds every
-    /// track URL under that folder, and browsing around a large library would
-    /// otherwise accumulate them all for the life of the session.
-    private var albumsCache = LRUCache<URL, [Album]>(costLimit: 8)
 
     /// Track whose album art the full-size art window should display.
     var artworkFullURL: URL?
@@ -112,7 +97,7 @@ final class AppModel {
         selectedTrack = nil
         Defaults.lastFolderPath = node.url.path
         if viewMode == .albums {
-            loadAlbums(for: node.url)
+            albums.load(for: node.url)
         } else {
             loadTracks(from: node.url)
         }
@@ -120,32 +105,12 @@ final class AppModel {
 
     // MARK: - Album grid
 
-    /// Discover the albums under `url` (recursively) for the grid. Cached per
-    /// folder and invalidated on ⌘R. The walk runs off the main actor; the grid
-    /// renders thumbnails lazily so only visible covers ever load.
-    func loadAlbums(for url: URL?) {
-        albumsTask?.cancel()
-        guard let url else { albums = []; isLoadingAlbums = false; return }
-        if let cached = albumsCache[url] { albums = cached; isLoadingAlbums = false; return }
-        isLoadingAlbums = true
-        albums = []
-        albumsTask = Task {
-            let found = await Task.detached(priority: .userInitiated) {
-                FileTreeModel.albumFolders(under: url)
-            }.value
-            if Task.isCancelled { return }
-            albumsCache.set(found, forKey: url)
-            albums = found
-            isLoadingAlbums = false
-        }
-    }
-
     /// Jukebox play: queue the album's tracks and start from the first. The tree
     /// selection (the album grid's scope) is left untouched.
     func playAlbum(_ album: Album) {
         let queue = album.trackURLs.map { Track(url: $0) }
         guard let first = queue.first else { return }
-        playingAlbum = album
+        albums.playing = album
         tracks = queue
         selectedTrack = first
         loadTracksTask?.cancel()
@@ -233,9 +198,9 @@ final class AppModel {
         Task {
             await metadata.clearCache()
             await tree.refresh(folder)
-            albumsCache.removeAll()
+            albums.invalidate()
             if viewMode == .albums {
-                loadAlbums(for: folder.url)
+                albums.load(for: folder.url)
             } else {
                 loadTracks(from: folder.url)
             }
@@ -264,7 +229,7 @@ final class AppModel {
     }
 
     private func startTrackLoad(sortByNumber: Bool = false, _ produce: @escaping @Sendable () async -> [Track]) {
-        playingAlbum = nil
+        albums.playing = nil
         loadTracksTask?.cancel()
         loadTracksTask = Task {
             let files = await produce()
@@ -292,7 +257,7 @@ final class AppModel {
             if let folder = selectedFolder { loadTracks(from: folder.url) } else { tracks = [] }
         case .albums:
             // The grid loads albums itself from the current folder scope.
-            loadAlbums(for: selectedFolder?.url)
+            albums.load(for: selectedFolder?.url)
         case .playlists:
             if let playlist = selectedPlaylist { selectPlaylist(playlist) } else { tracks = [] }
         }

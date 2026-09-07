@@ -40,6 +40,20 @@ actor MetadataService {
     private var metaTasks: [URL: Task<TrackMetadata, Never>] = [:]
     private var artTasks: [String: Task<Data?, Never>] = [:]
 
+    /// Resolved cover-image path per directory; an empty string means "looked,
+    /// found nothing". `loadArtwork` asks per *track*, so arrowing down a
+    /// 30-track album previously listed the same directory 30 times.
+    private var folderArtURLs = LRUCache<URL, String>(costLimit: 2_000)
+
+    private func folderArtwork(in folder: URL) -> URL? {
+        if let cached = folderArtURLs[folder] {
+            return cached.isEmpty ? nil : URL(fileURLWithPath: cached)
+        }
+        let found = Self.folderArtworkURL(in: folder)
+        folderArtURLs.set(found?.path ?? "", forKey: folder)
+        return found
+    }
+
     // MARK: - Public API
 
     func metadata(for url: URL) async -> TrackMetadata {
@@ -58,14 +72,18 @@ actor MetadataService {
     func clearCache() {
         metaCache.removeAll()
         artCache.removeAll()
+        // Also the resolved cover paths, or ⌘R wouldn't notice a cover.jpg that
+        // was just added to or removed from a folder.
+        folderArtURLs.removeAll()
     }
 
     /// Downscaled JPEG data for the track's artwork: embedded first, then a
     /// cover/folder image in the same directory. Returns nil when none found.
     func artworkData(for url: URL, maxPixel: Int) async -> Data? {
         let key = "\(maxPixel):\(url.absoluteString)"
+        let cover = folderArtwork(in: url.deletingLastPathComponent())
         return await artwork(key: key) {
-            await Self.loadArtwork(url: url, maxPixel: maxPixel)
+            await Self.loadArtwork(url: url, cover: cover, maxPixel: maxPixel)
         }
     }
 
@@ -75,8 +93,11 @@ actor MetadataService {
     /// folder and size, separate from the per-track cache.
     func albumArtworkData(folder: URL, track: URL?, maxPixel: Int) async -> Data? {
         let key = "album:\(maxPixel):\(folder.absoluteString)"
+        let cover = folderArtwork(in: folder)
+        let trackCover: URL? = track.flatMap { folderArtwork(in: $0.deletingLastPathComponent()) }
         return await artwork(key: key) {
-            await Self.loadAlbumArtwork(folder: folder, track: track, maxPixel: maxPixel)
+            await Self.loadAlbumArtwork(cover: cover, track: track,
+                                        trackCover: trackCover, maxPixel: maxPixel)
         }
     }
 
@@ -176,18 +197,19 @@ actor MetadataService {
     /// often far higher-resolution than the thumbnail baked into the audio file,
     /// so pick whichever source has the larger pixel dimensions rather than
     /// always preferring the embedded one.
-    private nonisolated static func loadArtwork(url: URL, maxPixel: Int) async -> Data? {
+    /// `cover` is the directory's cover image, resolved (and memoised) by the
+    /// caller on the actor.
+    private nonisolated static func loadArtwork(url: URL, cover: URL?, maxPixel: Int) async -> Data? {
         let embedded = await embeddedArtwork(url: url)
-        let folderURL = folderArtworkURL(in: url.deletingLastPathComponent())
 
         let embeddedDim = pixelDimension(data: embedded)
-        let folderDim = folderURL.map { pixelDimension(url: $0) } ?? 0
+        let folderDim = cover.map { pixelDimension(url: $0) } ?? 0
 
-        if folderDim > embeddedDim, let folderURL, let data = try? Data(contentsOf: folderURL) {
+        if folderDim > embeddedDim, let cover, let data = try? Data(contentsOf: cover) {
             return downscale(data, maxPixel: maxPixel)
         }
         if let embedded { return downscale(embedded, maxPixel: maxPixel) }
-        if let folderURL, let data = try? Data(contentsOf: folderURL) {
+        if let cover, let data = try? Data(contentsOf: cover) {
             return downscale(data, maxPixel: maxPixel)
         }
         return nil
@@ -196,11 +218,12 @@ actor MetadataService {
     /// Album-cell artwork: the album folder's own cover image wins (it's shared
     /// by multi-disc albums), otherwise defer to the representative track's
     /// embedded/folder artwork.
-    private nonisolated static func loadAlbumArtwork(folder: URL, track: URL?, maxPixel: Int) async -> Data? {
-        if let coverURL = folderArtworkURL(in: folder), let data = try? Data(contentsOf: coverURL) {
+    private nonisolated static func loadAlbumArtwork(cover: URL?, track: URL?, trackCover: URL?,
+                                                     maxPixel: Int) async -> Data? {
+        if let cover, let data = try? Data(contentsOf: cover) {
             return downscale(data, maxPixel: maxPixel)
         }
-        if let track { return await loadArtwork(url: track, maxPixel: maxPixel) }
+        if let track { return await loadArtwork(url: track, cover: trackCover, maxPixel: maxPixel) }
         return nil
     }
 

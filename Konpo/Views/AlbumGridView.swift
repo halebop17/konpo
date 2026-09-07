@@ -27,8 +27,8 @@ struct AlbumGridView: View {
     private let outerPad: CGFloat = 16
 
     private func applyFilter() {
-        let query = app.albumSearchText.trimmingCharacters(in: .whitespaces).lowercased()
-        filtered = query.isEmpty ? app.albums : app.albums.filter { $0.searchName.contains(query) }
+        let query = app.albums.searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        filtered = query.isEmpty ? app.albums.items : app.albums.items.filter { $0.searchName.contains(query) }
     }
 
     var body: some View {
@@ -51,10 +51,10 @@ struct AlbumGridView: View {
         // Only when the grid itself has focus — the search field keeps its spaces.
         .onKeyPress(.space) { app.playPause(); return .handled }
         .onKeyPress(.tab) { if !hideTree { focus.wrappedValue = .folders }; return .handled }
-        .onChange(of: app.albumSearchFocusRequest) { _, _ in searchFocused = true }
+        .onChange(of: app.albums.searchFocusRequest) { _, _ in searchFocused = true }
         .onAppear { applyFilter() }
-        .onChange(of: app.albums) { _, _ in selectedIndex = nil; applyFilter() }
-        .onChange(of: app.albumSearchText) { _, _ in selectedIndex = nil; applyFilter() }
+        .onChange(of: app.albums.items) { _, _ in selectedIndex = nil; applyFilter() }
+        .onChange(of: app.albums.searchText) { _, _ in selectedIndex = nil; applyFilter() }
     }
 
     // MARK: - Top bar (hide-tree toggle + search)
@@ -92,8 +92,8 @@ struct AlbumGridView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 10))
                 .foregroundStyle(Theme.dim)
-            TextField("Search", text: Binding(get: { app.albumSearchText },
-                                              set: { app.albumSearchText = $0 }))
+            TextField("Search", text: Binding(get: { app.albums.searchText },
+                                              set: { app.albums.searchText = $0 }))
                 .textFieldStyle(.plain)
                 .font(.system(size: 11))
                 .foregroundStyle(Theme.text)
@@ -104,8 +104,8 @@ struct AlbumGridView: View {
                     focus.wrappedValue = .tracks
                     if selectedIndex == nil, !filtered.isEmpty { selectedIndex = 0 }
                 }
-            if !app.albumSearchText.isEmpty {
-                Button { app.albumSearchText = "" } label: {
+            if !app.albums.searchText.isEmpty {
+                Button { app.albums.searchText = "" } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 10))
                         .foregroundStyle(Theme.dim)
@@ -128,10 +128,10 @@ struct AlbumGridView: View {
         GeometryReader { geo in
             let cols = max(1, Int((geo.size.width - 2 * outerPad + spacing) / (cellMin + spacing)))
             Group {
-                if app.isLoadingAlbums && app.albums.isEmpty {
+                if app.albums.isLoading && app.albums.items.isEmpty {
                     message("Loading albums…")
                 } else if filtered.isEmpty {
-                    message(app.albums.isEmpty ? "No albums here" : "No matches")
+                    message(app.albums.items.isEmpty ? "No albums here" : "No matches")
                 } else {
                     grid(cols: cols)
                 }

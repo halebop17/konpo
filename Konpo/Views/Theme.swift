@@ -17,11 +17,10 @@ enum Theme {
         /// the 3:1 large/secondary ratio rather than 4.5:1, so the table stays
         /// visually quiet without becoming unreadable.
         static let dim: UInt32 = 0x6B6D75
-        static let onAccent: UInt32 = 0x1B1C1E
     }
 
-    // Colors — fixed dark charcoal base, amber accent
-    static let accent = Color(hex: 0xF5A623)
+    // Colors — fixed dark charcoal base. The accent is user-selectable and
+    // lives on `Appearance`; these are the fixed surfaces and text tones.
     static let window = Color(hex: Hex.window)
     static let titlebar = Color(hex: Hex.titlebar)
     static let sidebar = Color(hex: Hex.sidebar)
@@ -31,18 +30,10 @@ enum Theme {
     static let dim = Color(hex: Hex.dim)
     static let separator = Color.white.opacity(0.06)
     static let sliderTrack = Color.white.opacity(0.13)
-    /// Text color used on top of the accent (accent is light amber → dark text)
-    static let onAccent = Color(hex: Hex.onAccent)
-    /// Tinted background for the playing/selected row
-    static let accentTint = accent.opacity(0.10)
-    static let accentSelection = accent.opacity(0.16)
 
     // Metrics ("dense" density from the mockup)
     static let rowHeight: CGFloat = 22
     static let fontSize: CGFloat = 12
-    static let titlebarHeight: CGFloat = 36
-    static let sidebarWidth: CGFloat = 186
-    static let panelWidth: CGFloat = 252
     static let transportBarHeight: CGFloat = 54
     static let tablePadX: CGFloat = 15
 

@@ -28,7 +28,7 @@ struct KonpoApp: App {
                 Divider()
                 Button("Find Albums") {
                     app.setViewMode(.albums)
-                    app.albumSearchFocusRequest += 1
+                    app.albums.searchFocusRequest += 1
                 }
                 .keyboardShortcut("f", modifiers: .command)
             }
