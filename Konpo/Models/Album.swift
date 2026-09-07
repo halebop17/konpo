@@ -20,6 +20,16 @@ struct Album: Identifiable, Hashable, Sendable {
     let name: String
     /// The album's discs, in order.
     let discs: [AlbumDisc]
+    /// Lowercased `name`, precomputed so the grid's live search doesn't lowercase
+    /// every album on every keystroke.
+    let searchName: String
+
+    init(folderURL: URL, name: String, discs: [AlbumDisc]) {
+        self.folderURL = folderURL
+        self.name = name
+        self.discs = discs
+        self.searchName = name.lowercased()
+    }
 
     var id: URL { folderURL }
 

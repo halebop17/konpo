@@ -192,7 +192,12 @@ private struct VisualizerWebView: NSViewRepresentable {
                         ints[i] = Int16(max(-1, min(1, samples[i])) * 32767)
                     }
                     let b64 = ints.withUnsafeBytes { Data($0) }.base64EncodedString()
-                    web.evaluateJavaScript("window.pushAudio && window.pushAudio('\(b64)')")
+                    // Passed as an argument rather than interpolated into the
+                    // script: at 50 Hz this was handing WebKit a freshly built
+                    // ~4 KB source string to parse 50 times a second.
+                    web.callAsyncJavaScript(
+                        "window.pushAudio && window.pushAudio(b64)",
+                        arguments: ["b64": b64], in: nil, in: .page)
                 }
             }
             RunLoop.main.add(timer, forMode: .common)

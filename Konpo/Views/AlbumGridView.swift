@@ -14,15 +14,21 @@ struct AlbumGridView: View {
     @State private var columnCount = 1
     @FocusState private var searchFocused: Bool
 
+    /// Albums after the live search filter (by folder name).
+    ///
+    /// Held in state rather than computed: `body` reads this several times per
+    /// evaluation (the count label, the empty check, the grid, and each key
+    /// handler), so a computed property re-filtered the entire library on every
+    /// render — including every scroll-driven one.
+    @State private var filtered: [Album] = []
+
     private let cellMin: CGFloat = 156
     private let spacing: CGFloat = 16
     private let outerPad: CGFloat = 16
 
-    /// Albums after the live search filter (by folder name).
-    private var filtered: [Album] {
+    private func applyFilter() {
         let query = app.albumSearchText.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !query.isEmpty else { return app.albums }
-        return app.albums.filter { $0.name.lowercased().contains(query) }
+        filtered = query.isEmpty ? app.albums : app.albums.filter { $0.searchName.contains(query) }
     }
 
     var body: some View {
@@ -46,8 +52,9 @@ struct AlbumGridView: View {
         .onKeyPress(.space) { app.playPause(); return .handled }
         .onKeyPress(.tab) { if !hideTree { focus.wrappedValue = .folders }; return .handled }
         .onChange(of: app.albumSearchFocusRequest) { _, _ in searchFocused = true }
-        .onChange(of: app.albums) { _, _ in selectedIndex = nil }
-        .onChange(of: app.albumSearchText) { _, _ in selectedIndex = nil }
+        .onAppear { applyFilter() }
+        .onChange(of: app.albums) { _, _ in selectedIndex = nil; applyFilter() }
+        .onChange(of: app.albumSearchText) { _, _ in selectedIndex = nil; applyFilter() }
     }
 
     // MARK: - Top bar (hide-tree toggle + search)

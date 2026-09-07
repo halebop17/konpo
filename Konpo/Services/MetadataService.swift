@@ -22,18 +22,35 @@ struct TrackMetadata: Sendable {
 
 /// Loads and caches track metadata and downscaled artwork off the main actor.
 actor MetadataService {
-    private var metaCache: [URL: TrackMetadata] = [:]
+    /// Tag/format data is small, so this budget is effectively an entry count.
+    private var metaCache = LRUCache<URL, TrackMetadata>(costLimit: 20_000)
     /// Resolved artwork keyed by track URL *and* requested size; empty Data
     /// caches a "no artwork" result. Keying by size matters — the panel (small)
     /// and the full-size window (large) must not share one downscaled copy.
-    private var artCache: [String: Data] = [:]
+    ///
+    /// Budgeted in bytes: this holds encoded JPEG data, including 2048px art from
+    /// the full-size window, so scrolling a large library through the album grid
+    /// would otherwise grow the process without bound.
+    private var artCache = LRUCache<String, Data>(costLimit: 96 * 1024 * 1024)
+
+    /// Loads already running, so concurrent requests for the same key share one
+    /// decode instead of each doing the full work. Without this the actor frees
+    /// itself at the first `await`, so a cache miss is not exclusive — the album
+    /// grid cell and the art panel asking for the same cover is exactly that case.
+    private var metaTasks: [URL: Task<TrackMetadata, Never>] = [:]
+    private var artTasks: [String: Task<Data?, Never>] = [:]
 
     // MARK: - Public API
 
     func metadata(for url: URL) async -> TrackMetadata {
         if let cached = metaCache[url] { return cached }
-        let meta = await Self.loadMetadata(url: url)
-        metaCache[url] = meta
+        if let inFlight = metaTasks[url] { return await inFlight.value }
+
+        let task = Task { await Self.loadMetadata(url: url) }
+        metaTasks[url] = task
+        let meta = await task.value
+        metaTasks[url] = nil
+        metaCache.set(meta, forKey: url)
         return meta
     }
 
@@ -47,10 +64,9 @@ actor MetadataService {
     /// cover/folder image in the same directory. Returns nil when none found.
     func artworkData(for url: URL, maxPixel: Int) async -> Data? {
         let key = "\(maxPixel):\(url.absoluteString)"
-        if let cached = artCache[key] { return cached.isEmpty ? nil : cached }
-        let resolved = await Self.loadArtwork(url: url, maxPixel: maxPixel)
-        artCache[key] = resolved ?? Data()
-        return resolved
+        return await artwork(key: key) {
+            await Self.loadArtwork(url: url, maxPixel: maxPixel)
+        }
     }
 
     /// Downscaled artwork for an album cell. Looks in the album *folder* first —
@@ -59,9 +75,22 @@ actor MetadataService {
     /// folder and size, separate from the per-track cache.
     func albumArtworkData(folder: URL, track: URL?, maxPixel: Int) async -> Data? {
         let key = "album:\(maxPixel):\(folder.absoluteString)"
+        return await artwork(key: key) {
+            await Self.loadAlbumArtwork(folder: folder, track: track, maxPixel: maxPixel)
+        }
+    }
+
+    /// Shared cache / in-flight / store path for both artwork lookups.
+    private func artwork(key: String, load: @escaping @Sendable () async -> Data?) async -> Data? {
         if let cached = artCache[key] { return cached.isEmpty ? nil : cached }
-        let resolved = await Self.loadAlbumArtwork(folder: folder, track: track, maxPixel: maxPixel)
-        artCache[key] = resolved ?? Data()
+        if let inFlight = artTasks[key] { return await inFlight.value }
+
+        let task = Task { await load() }
+        artTasks[key] = task
+        let resolved = await task.value
+        artTasks[key] = nil
+        // An empty Data is the "no artwork here" sentinel and costs nothing to keep.
+        artCache.set(resolved ?? Data(), forKey: key, cost: resolved?.count ?? 1)
         return resolved
     }
 

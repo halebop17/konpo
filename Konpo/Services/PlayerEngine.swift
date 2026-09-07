@@ -17,7 +17,7 @@ final class PlayerEngine {
     var volume: Float = 0.8 {
         didSet {
             engine.mainMixerNode.outputVolume = volume
-            UserDefaults.standard.set(volume, forKey: "volume")
+            persistVolumeSoon()
         }
     }
 
@@ -55,6 +55,19 @@ final class PlayerEngine {
     private var pendingBaseSeconds: Double?
 
     private var pollTask: Task<Void, Never>?
+    private var volumePersistTask: Task<Void, Never>?
+
+    /// Dragging the volume bar sets `volume` on every frame of the gesture, so
+    /// writing straight through would hit UserDefaults dozens of times a second.
+    private func persistVolumeSoon() {
+        volumePersistTask?.cancel()
+        let value = volume
+        volumePersistTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(400))
+            guard self != nil, !Task.isCancelled else { return }
+            UserDefaults.standard.set(value, forKey: "volume")
+        }
+    }
 
     init() {
         engine.attach(player)
@@ -300,6 +313,12 @@ final class PlayerEngine {
         guard visualizerTapActive else { return }
         visualizerTapActive = false
         engine.mainMixerNode.removeTap(onBus: 0)
+        // startVisualizerTap deliberately starts the engine so the visualizer
+        // stays live while paused. Without this the engine would then keep
+        // rendering silence for the rest of the session. `pause` (not `stop`)
+        // keeps the graph and any scheduled buffers intact, so resuming from a
+        // paused track still works — play/resume restart the engine as needed.
+        if state != .playing { engine.pause() }
     }
 
     /// Output route/hardware changed (e.g. headphones unplugged): the engine has

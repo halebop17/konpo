@@ -45,7 +45,10 @@ final class AppModel {
     /// Bumped by the Find command (⌘F) to ask the grid to focus its search field.
     var albumSearchFocusRequest = 0
     private var albumsTask: Task<Void, Never>?
-    private var albumsCache: [URL: [Album]] = [:]
+    /// Discovered albums per folder scope. Bounded because each entry holds every
+    /// track URL under that folder, and browsing around a large library would
+    /// otherwise accumulate them all for the life of the session.
+    private var albumsCache = LRUCache<URL, [Album]>(costLimit: 8)
 
     /// Track whose album art the full-size art window should display.
     var artworkFullURL: URL?
@@ -203,7 +206,7 @@ final class AppModel {
                 FileTreeModel.albumFolders(under: url)
             }.value
             if Task.isCancelled { return }
-            albumsCache[url] = found
+            albumsCache.set(found, forKey: url)
             albums = found
             isLoadingAlbums = false
         }
