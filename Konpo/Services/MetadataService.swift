@@ -106,8 +106,12 @@ actor MetadataService {
             }
             switch item.identifier {
             case .some(.iTunesMetadataTrackNumber):
+                // Copy to an Array before indexing: Data subscripts by absolute
+                // index, so a slice with a non-zero startIndex would trap here
+                // rather than merely read the wrong bytes.
                 if let data = try? await item.load(.dataValue), data.count >= 4 {
-                    m.trackNumber = Int(data[2]) << 8 | Int(data[3])
+                    let bytes = Array(data)
+                    m.trackNumber = Int(bytes[2]) << 8 | Int(bytes[3])
                 } else if let n = try? await item.load(.numberValue) {
                     m.trackNumber = n.intValue
                 }

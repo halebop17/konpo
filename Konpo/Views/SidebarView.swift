@@ -31,6 +31,7 @@ struct SidebarView: View {
         }
         .onKeyPress(.leftArrow) { folderKey { app.collapseOrParent() } }
         .onKeyPress(.return) { folderKey { focus.wrappedValue = .tracks } }
+        .onKeyPress(.space) { app.playPause(); return .handled }
     }
 
     /// Folder-nav keys apply whenever the tree is shown (folders or albums);

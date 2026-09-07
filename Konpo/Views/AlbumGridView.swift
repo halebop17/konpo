@@ -42,6 +42,8 @@ struct AlbumGridView: View {
         .onKeyPress(.leftArrow) { moveLeft() }
         .onKeyPress(.rightArrow) { move(1) }
         .onKeyPress(.return) { playSelected() }
+        // Only when the grid itself has focus — the search field keeps its spaces.
+        .onKeyPress(.space) { app.playPause(); return .handled }
         .onKeyPress(.tab) { if !hideTree { focus.wrappedValue = .folders }; return .handled }
         .onChange(of: app.albumSearchFocusRequest) { _, _ in searchFocused = true }
         .onChange(of: app.albums) { _, _ in selectedIndex = nil }

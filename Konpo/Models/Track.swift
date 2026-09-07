@@ -21,11 +21,11 @@ struct Track: Identifiable, Hashable, Sendable {
     /// File extension uppercased (e.g. "M4A") — a fallback format hint.
     var formatHint: String { url.pathExtension.uppercased() }
 
-    /// Formatted duration ("m:ss"), empty until metadata loads.
+    /// Formatted duration ("m:ss", or "h:mm:ss" past the hour), empty until
+    /// metadata loads so the track list can show its own placeholder.
     var durationText: String {
         guard let secs = durationSeconds, secs.isFinite, secs >= 0 else { return "" }
-        let total = Int(secs.rounded())
-        return String(format: "%d:%02d", total / 60, total % 60)
+        return TimeFormat.string(secs)
     }
 
     init(url: URL) {

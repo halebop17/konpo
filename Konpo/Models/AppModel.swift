@@ -147,6 +147,8 @@ final class AppModel {
         player.onTrackChanged = { [weak self] url in self?.engineAdvanced(to: url) }
         player.onPlaybackEnded = { [weak self] in self?.playbackEnded() }
         player.onError = { [weak self] message in self?.showError(message) }
+        player.onTrackFailed = { [weak self] url in self?.skipFailedTrack(url) }
+        playlists.onError = { [weak self] message in self?.showError(message) }
         wireRemoteCommands()
         restoreSession()
     }
@@ -552,11 +554,43 @@ final class AppModel {
     func play(_ track: Track, in queue: [Track]? = nil) {
         playQueue = queue ?? tracks
         queueIndex = playQueue.firstIndex { $0.url == track.url } ?? 0
-        nowPlaying = track
-        selectedTrack = track
-        player.play(url: track.url)
-        player.setUpcoming(url: upcomingURL())
+        startCurrentQueueItem()
+    }
+
+    /// Start the queue item at `queueIndex`, stepping past anything that won't
+    /// open. Playlists store plain filesystem paths, so a moved or deleted track
+    /// is routine — it should cost you one track, not the rest of the queue.
+    ///
+    /// Iterative rather than recursive, and bounded by the queue length, so a
+    /// queue where every file is missing terminates instead of spinning.
+    private func startCurrentQueueItem() {
+        var attempts = 0
+        while queueIndex < playQueue.count, attempts < playQueue.count {
+            let track = playQueue[queueIndex]
+            nowPlaying = track
+            selectedTrack = track
+            if player.play(url: track.url) {
+                player.setUpcoming(url: upcomingURL())
+                updateNowPlaying()
+                return
+            }
+            queueIndex += 1
+            attempts += 1
+        }
+        nowPlaying = nil
         updateNowPlaying()
+    }
+
+    /// The engine hit an unopenable file while advancing on its own — resume the
+    /// queue after it.
+    private func skipFailedTrack(_ url: URL) {
+        guard let index = playQueue.firstIndex(where: { $0.url == url }) else {
+            nowPlaying = nil
+            updateNowPlaying()
+            return
+        }
+        queueIndex = index + 1
+        startCurrentQueueItem()
     }
 
     func playPause() {
@@ -571,14 +605,14 @@ final class AppModel {
 
     func playNext() {
         guard !playQueue.isEmpty else { return }
-        let next = queueIndex + 1
-        guard next < playQueue.count else {
+        guard queueIndex + 1 < playQueue.count else {
             player.stop()
             nowPlaying = nil
             updateNowPlaying()
             return
         }
-        play(playQueue[next], in: playQueue)
+        queueIndex += 1
+        startCurrentQueueItem()
     }
 
     func playPrevious() {
@@ -588,7 +622,8 @@ final class AppModel {
             updateNowPlaying()
             return
         }
-        play(playQueue[queueIndex - 1], in: playQueue)
+        queueIndex -= 1
+        startCurrentQueueItem()
     }
 
     func seek(to seconds: Double) {

@@ -571,17 +571,16 @@ struct MainWindow: View {
         .buttonStyle(.plain)
     }
 
-    private func timeString(_ seconds: Double) -> String {
-        guard seconds.isFinite, seconds >= 0 else { return "0:00" }
-        let total = Int(seconds)
-        return String(format: "%d:%02d", total / 60, total % 60)
-    }
+    private func timeString(_ seconds: Double) -> String { TimeFormat.string(seconds) }
 }
 
 /// A controlled progress/volume bar: click or drag to set. The visible track is
 /// thin (4pt) but the clickable band fills `hitHeight`, so clicks slightly above
 /// or below the line still register. `fraction` is owned by the parent.
-private struct DraggableBar: View {
+///
+/// Internal rather than private so `fraction(of:in:)` can be unit tested — the
+/// clamping there guards a real crash, not just a visual glitch.
+struct DraggableBar: View {
     var fraction: Double
     var fillColor: Color
     var showKnob: Bool
@@ -609,14 +608,25 @@ private struct DraggableBar: View {
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
-                        onScrub(min(max(value.location.x / width, 0), 1))
+                        if let f = Self.fraction(of: value.location.x, in: width) { onScrub(f) }
                     }
                     .onEnded { value in
-                        onCommit(min(max(value.location.x / width, 0), 1))
+                        if let f = Self.fraction(of: value.location.x, in: width) { onCommit(f) }
                     }
             )
         }
         .frame(height: hitHeight)
+    }
+
+    /// Drag position → 0…1, or nil when the bar has no width to divide by.
+    ///
+    /// The zero-width case is not theoretical: during the first layout pass the
+    /// GeometryReader can report 0, and `x / 0` is `NaN`. `min(max(NaN, 0), 1)`
+    /// looks like it clamps but propagates the `NaN` — which reaches
+    /// `PlayerEngine.seek(to:)` and traps converting it to `AVAudioFramePosition`.
+    static func fraction(of x: CGFloat, in width: CGFloat) -> Double? {
+        guard width > 0, x.isFinite else { return nil }
+        return Swift.min(Swift.max(Double(x / width), 0), 1)
     }
 }
 

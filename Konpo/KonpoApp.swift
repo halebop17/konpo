@@ -33,8 +33,14 @@ struct KonpoApp: App {
                 .keyboardShortcut("f", modifiers: .command)
             }
             CommandMenu("Playback") {
+                // Space is deliberately NOT a menu key equivalent. AppKit matches
+                // main-menu key equivalents before the event reaches the key
+                // window's first responder, so a no-modifier Space here would be
+                // swallowed by the menu instead of typed into the album search
+                // field (⌘F) or the New Playlist name field. The focusable panes
+                // handle Space themselves via .onKeyPress, which keeps play/pause
+                // on Space everywhere it makes sense and leaves text fields alone.
                 Button(app.player.state == .playing ? "Pause" : "Play") { app.playPause() }
-                    .keyboardShortcut(.space, modifiers: [])
                 // Return is handled contextually by the focused list (play the
                 // selected track / jump into the track list), so no menu shortcut.
                 Button("Play Selected") { app.playSelected() }

@@ -27,6 +27,9 @@ final class PlayerEngine {
     var onPlaybackEnded: (() -> Void)?
     /// A file could not be opened/played.
     var onError: ((String) -> Void)?
+    /// The engine tried to advance to `url` on its own and it would not open, so
+    /// the queue owner should move past it instead of letting playback end.
+    var onTrackFailed: ((URL) -> Void)?
 
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
@@ -67,13 +70,17 @@ final class PlayerEngine {
 
     // MARK: - Transport
 
-    func play(url: URL) {
+    /// Start `url`. Returns false if the file could not be opened (moved,
+    /// deleted, or not decodable) so the caller can skip it rather than treating
+    /// it as the end of playback.
+    @discardableResult
+    func play(url: URL) -> Bool {
         generation += 1
         let gen = generation
         guard let file = try? AVAudioFile(forReading: url) else {
             onError?("Can't play \(url.lastPathComponent)")
             stop()
-            return
+            return false
         }
         let format = file.processingFormat
         let dur = format.sampleRate > 0 ? Double(file.length) / format.sampleRate : 0
@@ -93,13 +100,15 @@ final class PlayerEngine {
         do {
             if !engine.isRunning { try engine.start() }
         } catch {
+            onError?("Audio engine wouldn't start")
             stop()
-            return
+            return false
         }
         player.play()
         state = .playing
         setBaseline(seconds: 0)
         startPolling()
+        return true
     }
 
     /// Hint the next track so it can be pre-scheduled for gapless playback.
@@ -144,7 +153,9 @@ final class PlayerEngine {
     }
 
     func seek(to seconds: Double) {
-        guard let cur = current, duration > 0 else { return }
+        // isFinite is a real guard, not defensive dressing: a non-finite value
+        // reaching the AVAudioFramePosition conversion below traps.
+        guard seconds.isFinite, let cur = current, duration > 0 else { return }
         generation += 1
         let gen = generation
         let sr = cur.file.processingFormat.sampleRate
@@ -214,13 +225,22 @@ final class PlayerEngine {
             currentURL = next.url
             duration = next.duration
             scheduledNext = nil
+            // The promoted track is still sitting in `upcomingURL`; clear it
+            // before anything can re-schedule, or a nil/reordered onTrackChanged
+            // would queue the same file again and play it twice. onTrackChanged
+            // repoints this at the real next track.
+            upcomingURL = nil
             setBaseline(seconds: 0)
             onTrackChanged?(next.url)
             scheduleUpcoming(gen: generation)
         } else if let next = upcomingURL {
             // Format boundary / not pre-scheduled: restart (a brief gap here).
-            play(url: next)
-            onTrackChanged?(next)
+            if play(url: next) {
+                onTrackChanged?(next)
+            } else {
+                // Unopenable: hand it back so the queue can skip past it.
+                onTrackFailed?(next)
+            }
         } else {
             state = .stopped
             position = duration

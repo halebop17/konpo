@@ -47,6 +47,7 @@ struct TrackListView: View {
         .onKeyPress(.leftArrow) { focus.wrappedValue = .folders; return .handled }
         .onKeyPress(.tab) { focus.wrappedValue = .folders; return .handled }
         .onKeyPress(.return) { app.playSelected(); return .handled }
+        .onKeyPress(.space) { app.playPause(); return .handled }
     }
 
     private var header: some View {

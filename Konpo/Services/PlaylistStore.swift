@@ -5,6 +5,9 @@ import Foundation
 @Observable
 final class PlaylistStore {
     private(set) var playlists: [Playlist] = []
+    /// Reported when a playlist can't be written to disk — silently losing
+    /// someone's playlist is the worst outcome here.
+    @ObservationIgnored var onError: ((String) -> Void)?
     private let fileURL: URL
 
     init() {
@@ -73,7 +76,11 @@ final class PlaylistStore {
     }
 
     private func save() {
-        guard let data = try? JSONEncoder().encode(playlists) else { return }
-        try? data.write(to: fileURL, options: .atomic)
+        do {
+            let data = try JSONEncoder().encode(playlists)
+            try data.write(to: fileURL, options: .atomic)
+        } catch {
+            onError?("Couldn't save playlists: \(error.localizedDescription)")
+        }
     }
 }

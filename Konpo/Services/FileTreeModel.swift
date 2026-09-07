@@ -11,6 +11,10 @@ final class FileTreeModel {
 
     private let defaultsKey = "rootFolderPath"
 
+    /// In-flight child loads, keyed by directory, so concurrent expands of the
+    /// same node share one directory read.
+    private var loadTasks: [URL: Task<Void, Never>] = [:]
+
     /// Extensions Core Audio can decode. FLAC is supported since macOS 10.13.
     nonisolated static let audioExtensions: Set<String> = [
         "m4a", "mp3", "flac", "aac", "wav", "aiff", "aif", "m4b", "caf",
@@ -62,7 +66,17 @@ final class FileTreeModel {
     func expand(_ node: FileNode) async {
         guard node.isDirectory else { return }
         if node.children == nil {
-            await loadChildren(of: node)
+            // `toggle` fires this from a detached Task, so two quick clicks (or a
+            // click racing the keyboard) would both observe nil children and both
+            // run the directory read. Join the in-flight load instead.
+            if let existing = loadTasks[node.url] {
+                await existing.value
+            } else {
+                let task = Task { await self.loadChildren(of: node) }
+                loadTasks[node.url] = task
+                await task.value
+                loadTasks[node.url] = nil
+            }
         }
         node.isExpanded = true
     }
