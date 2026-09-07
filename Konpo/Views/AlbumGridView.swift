@@ -6,6 +6,7 @@ import SwiftUI
 /// picking the root shows them all. Covers load lazily, only when scrolled into
 /// view, to stay as light as the rest of Konpo.
 struct AlbumGridView: View {
+    @Environment(\.scaled) private var scaled
     @Environment(AppModel.self) private var app
     var focus: FocusState<FocusedPane?>.Binding
 
@@ -65,7 +66,7 @@ struct AlbumGridView: View {
                 withAnimation(.easeInOut(duration: 0.18)) { hideTree.toggle() }
             } label: {
                 Image(systemName: "sidebar.left")
-                    .font(.system(size: 12))
+                    .font(scaled.font(12))
                     .foregroundStyle(hideTree ? Theme.muted : app.appearance.accent)
                     .contentShape(Rectangle())
             }
@@ -78,7 +79,7 @@ struct AlbumGridView: View {
 
             if !filtered.isEmpty {
                 Text(Counts.albums(filtered.count))
-                    .font(.system(size: 10.5))
+                    .font(scaled.font(10.5))
                     .foregroundStyle(Theme.dim)
             }
         }
@@ -90,12 +91,12 @@ struct AlbumGridView: View {
     private var searchField: some View {
         HStack(spacing: 5) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 10))
+                .font(scaled.font(10))
                 .foregroundStyle(Theme.dim)
             TextField("Search", text: Binding(get: { app.albums.searchText },
                                               set: { app.albums.searchText = $0 }))
                 .textFieldStyle(.plain)
-                .font(.system(size: 11))
+                .font(scaled.font(11))
                 .foregroundStyle(Theme.text)
                 .focused($searchFocused)
                 .frame(width: 150)
@@ -107,7 +108,7 @@ struct AlbumGridView: View {
             if !app.albums.searchText.isEmpty {
                 Button { app.albums.searchText = "" } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 10))
+                        .font(scaled.font(10))
                         .foregroundStyle(Theme.dim)
                 }
                 .buttonStyle(.plain)
@@ -176,7 +177,7 @@ struct AlbumGridView: View {
                 .overlay(alignment: .bottomLeading) {
                     if playing {
                         Image(systemName: "play.fill")
-                            .font(.system(size: 9, weight: .bold))
+                            .font(scaled.font(9, weight: .bold))
                             .foregroundStyle(app.appearance.onAccent)
                             .padding(4)
                             .background(app.appearance.accent, in: RoundedRectangle(cornerRadius: 4))
@@ -184,7 +185,7 @@ struct AlbumGridView: View {
                     }
                 }
             Text(album.name)
-                .font(.system(size: Theme.fontSize, weight: playing ? .semibold : .regular))
+                .font(scaled.font(Theme.fontSize, weight: playing ? .semibold : .regular))
                 .foregroundStyle(playing ? app.appearance.accent : Theme.text)
                 .lineLimit(2)
                 .multilineTextAlignment(.leading)
@@ -225,7 +226,7 @@ struct AlbumGridView: View {
 
     private func message(_ text: LocalizedStringKey) -> some View {
         Text(text)
-            .font(.system(size: 13))
+            .font(scaled.font(13))
             .foregroundStyle(Theme.muted)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

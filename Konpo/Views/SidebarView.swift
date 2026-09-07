@@ -3,6 +3,7 @@ import SwiftUI
 /// Left sidebar shell: a Folders/Playlists mode switch in the header, then the
 /// folder tree or the playlist list below.
 struct SidebarView: View {
+    @Environment(\.scaled) private var scaled
     @Environment(AppModel.self) private var app
     var focus: FocusState<FocusedPane?>.Binding
 
@@ -51,7 +52,7 @@ struct SidebarView: View {
             if app.viewMode == .playlists {
                 Button { app.beginNewPlaylist(with: nil) } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(scaled.font(11, weight: .bold))
                         .foregroundStyle(Theme.muted)
                         .contentShape(Rectangle())
                 }
@@ -67,7 +68,7 @@ struct SidebarView: View {
         let active = app.viewMode == mode
         return Button { app.setViewMode(mode) } label: {
             Text(title)
-                .font(.system(size: 10, weight: .medium))
+                .font(scaled.font(10, weight: .medium))
                 .kerning(0.8)
                 .foregroundStyle(active ? app.appearance.accent : Theme.dim)
                 .contentShape(Rectangle())

@@ -2,16 +2,17 @@ import SwiftUI
 
 /// Playlist list shown in the sidebar when in Playlists mode.
 struct PlaylistSidebar: View {
+    @Environment(\.scaled) private var scaled
     @Environment(AppModel.self) private var app
 
     var body: some View {
         if app.playlists.playlists.isEmpty {
             VStack(spacing: 8) {
                 Text("No playlists")
-                    .font(.system(size: 12))
+                    .font(scaled.font(12))
                     .foregroundStyle(Theme.muted)
                 Text("Right-click a track →\nAdd to Playlist")
-                    .font(.system(size: 11))
+                    .font(scaled.font(11))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(Theme.dim)
             }
@@ -31,6 +32,7 @@ struct PlaylistSidebar: View {
 }
 
 private struct PlaylistRow: View {
+    @Environment(\.scaled) private var scaled
     @Environment(AppModel.self) private var app
     let playlist: Playlist
 
@@ -42,23 +44,23 @@ private struct PlaylistRow: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "music.note.list")
-                    .font(.system(size: 10))
+                    .font(scaled.font(10))
                     .foregroundStyle(isSelected ? app.appearance.accent : Theme.dim)
                     .frame(width: 14)
                     .accessibilityHidden(true)
                 Text(playlist.name)
-                    .font(.system(size: Theme.fontSize, weight: isSelected ? .semibold : .regular))
+                    .font(scaled.font(Theme.fontSize, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(isSelected ? app.appearance.accent : Theme.text)
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Spacer(minLength: 0)
                 Text("\(playlist.trackPaths.count)")
-                    .font(.konpoMono(10))
+                    .font(scaled.mono(10))
                     .foregroundStyle(Theme.dim)
             }
             .padding(.leading, 12)
             .padding(.trailing, 10)
-            .frame(height: Theme.rowHeight)
+            .frame(height: scaled.rowHeight)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(isSelected ? app.appearance.accentSelection : .clear)
             .overlay(alignment: .leading) {
