@@ -2,14 +2,14 @@
 #
 # Build, sign, notarize and staple Konpo for distribution outside the App Store.
 #
-# Why this exists: the project signs ad hoc (CODE_SIGN_IDENTITY = "-"), which
-# makes ENABLE_HARDENED_RUNTIME inert — the build log says as much:
+# This is NOT fixing a broken release: Konpo 1.0 already shipped correctly
+# signed, notarized and stapled (spctl reports "Notarized Developer ID"). It
+# just does from the command line what is currently done by hand through
+# Xcode's Organizer, so the steps live in version control and can run in CI.
 #
-#     note: Disabling hardened runtime with ad-hoc codesigning.
-#
-# An ad-hoc signed app that a user downloads is quarantined by Gatekeeper and
-# refuses to open with "Konpo is damaged and can't be opened". Notarization is
-# what removes that, and it requires a real Developer ID certificate.
+# Note that CODE_SIGN_IDENTITY = "-" in the project only affects ordinary local
+# builds; the archive/export path below signs with a real Developer ID, which is
+# what actually gets distributed.
 #
 # Usage:
 #   export DEVELOPER_ID="Developer ID Application: Your Name (TEAMID)"
@@ -30,9 +30,47 @@
 
 set -euo pipefail
 
-: "${DEVELOPER_ID:?Set DEVELOPER_ID to your \"Developer ID Application: ...\" identity}"
-: "${TEAM_ID:?Set TEAM_ID to your Apple Developer team ID}"
+# Identity and team are detected from the keychain rather than hardcoded, so no
+# developer name or team id is committed to a public repo. Override either by
+# exporting it if the machine has more than one Developer ID.
+if [[ -z "${DEVELOPER_ID:-}" ]]; then
+    DEVELOPER_ID="$(security find-identity -v -p codesigning \
+        | awk -F'"' '/Developer ID Application/ { print $2; exit }')"
+fi
+[[ -n "$DEVELOPER_ID" ]] || {
+    echo "No 'Developer ID Application' certificate found in the keychain." >&2
+    echo "Download one from developer.apple.com → Certificates, or export DEVELOPER_ID." >&2
+    exit 1
+}
+
+# Team id is the parenthesised suffix of the identity name.
+if [[ -z "${TEAM_ID:-}" ]]; then
+    TEAM_ID="$(sed -n 's/.*(\([A-Z0-9]\{10\}\))$/\1/p' <<<"$DEVELOPER_ID")"
+fi
+[[ -n "$TEAM_ID" ]] || { echo "Could not derive TEAM_ID from '$DEVELOPER_ID'; export it." >&2; exit 1; }
+
 : "${NOTARY_PROFILE:=konpo-notary}"
+
+if ! xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
+    cat >&2 <<MSG
+No notarytool credentials stored under the profile "$NOTARY_PROFILE".
+
+Signing alone does not get past Gatekeeper — the app has to be notarized by
+Apple. Store the credentials once (they go into your keychain, not this repo):
+
+  xcrun notarytool store-credentials "$NOTARY_PROFILE" \\
+      --apple-id "<the Apple ID for team $TEAM_ID>" \\
+      --team-id "$TEAM_ID" \\
+      --password "<app-specific password>"
+
+Create the app-specific password at appleid.apple.com → Sign-In and Security →
+App-Specific Passwords. It is not your Apple ID password.
+MSG
+    exit 1
+fi
+
+echo "==> Signing as: $DEVELOPER_ID"
+echo "==> Team: $TEAM_ID"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD="$ROOT/build"
@@ -82,9 +120,25 @@ echo "==> Verifying the signature before notarizing"
 # --strict catches problems that would otherwise only show up as a notarization
 # rejection several minutes later.
 codesign --verify --deep --strict --verbose=2 "$APP"
-# Confirms the hardened runtime actually took effect this time.
-codesign --display --verbose=4 "$APP" 2>&1 | grep -q "runtime" \
-    || { echo "ERROR: hardened runtime flag missing from the signature"; exit 1; }
+
+# Confirms the hardened runtime actually took effect this time. Captured into a
+# variable rather than piped into `grep -q`: under `set -o pipefail`, grep -q
+# exits as soon as it matches, which can SIGPIPE codesign and make the pipeline
+# report failure on a signature that is perfectly fine. That race made this step
+# fail spuriously the first time it ran.
+signature_info="$(codesign --display --verbose=4 "$APP" 2>&1)"
+case "$signature_info" in
+    *"flags=0x10000(runtime)"*) ;;
+    *) echo "ERROR: hardened runtime flag missing from the signature" >&2
+       echo "$signature_info" >&2
+       exit 1 ;;
+esac
+case "$signature_info" in
+    *"Authority=Developer ID Application"*) ;;
+    *) echo "ERROR: not signed with a Developer ID Application certificate" >&2
+       exit 1 ;;
+esac
+echo "    hardened runtime: on, Developer ID: present, timestamped"
 
 echo "==> Building DMG"
 # Notarizing the DMG (rather than a zip) means the thing users download is the
