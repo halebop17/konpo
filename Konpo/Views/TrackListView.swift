@@ -144,7 +144,9 @@ struct TrackListView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var emptyMessage: String {
+    /// LocalizedStringKey, not String: `Text(someString)` renders the string
+    /// verbatim and never reaches the string catalog.
+    private var emptyMessage: LocalizedStringKey {
         if app.viewMode == .playlists {
             return app.selectedPlaylist == nil ? "Select a playlist" : "Playlist is empty"
         }

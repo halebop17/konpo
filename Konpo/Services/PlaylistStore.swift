@@ -80,7 +80,7 @@ final class PlaylistStore {
             let data = try JSONEncoder().encode(playlists)
             try data.write(to: fileURL, options: .atomic)
         } catch {
-            onError?("Couldn't save playlists: \(error.localizedDescription)")
+            onError?(String(localized: "Couldn't save playlists: \(error.localizedDescription)"))
         }
     }
 }

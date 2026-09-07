@@ -45,6 +45,7 @@ private struct PlaylistRow: View {
                     .font(.system(size: 10))
                     .foregroundStyle(isSelected ? app.appearance.accent : Theme.dim)
                     .frame(width: 14)
+                    .accessibilityHidden(true)
                 Text(playlist.name)
                     .font(.system(size: Theme.fontSize, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(isSelected ? app.appearance.accent : Theme.text)
@@ -69,5 +70,7 @@ private struct PlaylistRow: View {
         .contextMenu {
             Button("Delete Playlist", role: .destructive) { app.deletePlaylist(playlist) }
         }
+        .accessibilityLabel(playlist.name)
+        .accessibilityValue(Counts.tracks(playlist.trackPaths.count))
     }
 }

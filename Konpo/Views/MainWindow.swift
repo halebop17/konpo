@@ -415,6 +415,11 @@ struct MainWindow: View {
         .onTapGesture(count: 2) { app.play(track) }
         .onTapGesture(count: 1) { app.selectedTrack = track }
         .help(track.title)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(number). \(track.title)")
+        .accessibilityValue(playing ? "Now playing, \(track.durationText)" : track.durationText)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { app.play(track) }
     }
 
     /// Three dots (small → large) that pick the art-panel width preset.
@@ -496,7 +501,7 @@ struct MainWindow: View {
                     }
             }
             HStack(spacing: 10) {
-                transportButton("backward.end.fill") { app.playPrevious() }
+                transportButton("backward.end.fill", label: "Previous track") { app.playPrevious() }
                 Button {
                     app.playPause()
                 } label: {
@@ -511,7 +516,8 @@ struct MainWindow: View {
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
-                transportButton("forward.end.fill") { app.playNext() }
+                .accessibilityLabel(isPlaying ? "Pause" : "Play")
+                transportButton("forward.end.fill", label: "Next track") { app.playNext() }
             }
             // The title hugs its text (no reserved block), so the greedy seek
             // bar to its right soaks up all remaining width — the bar grows with
@@ -529,6 +535,10 @@ struct MainWindow: View {
                     .foregroundStyle(Theme.muted)
                 DraggableBar(fraction: fraction, fillColor: app.appearance.accent, showKnob: true,
                     hitHeight: 30,
+                    accessibilityLabel: "Playback position",
+                    accessibilityValue: duration > 0
+                        ? "\(timeString(displaySeconds)) of \(timeString(duration))"
+                        : "Nothing playing",
                     onScrub: { frac in
                         if duration > 0 { scrubSeconds = frac * duration }
                     },
@@ -550,8 +560,11 @@ struct MainWindow: View {
                 Image(systemName: "speaker.wave.2.fill")
                     .font(.system(size: 13))
                     .foregroundStyle(Theme.muted)
+                    .accessibilityHidden(true)
                 DraggableBar(fraction: Double(app.player.volume), fillColor: Theme.muted, showKnob: false,
                     hitHeight: 22,
+                    accessibilityLabel: "Volume",
+                    accessibilityValue: "\(Int((app.player.volume * 100).rounded())) percent",
                     onScrub: { frac in app.player.volume = Float(frac) },
                     onCommit: { frac in app.player.volume = Float(frac) })
             }
@@ -563,7 +576,8 @@ struct MainWindow: View {
         .overlay(alignment: .top) { Theme.separator.frame(height: 1) }
     }
 
-    private func transportButton(_ systemName: String, action: @escaping () -> Void) -> some View {
+    private func transportButton(_ systemName: String, label: LocalizedStringKey,
+                                 action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 15))
@@ -572,6 +586,7 @@ struct MainWindow: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 
     private func timeString(_ seconds: Double) -> String { TimeFormat.string(seconds) }
@@ -588,6 +603,12 @@ struct DraggableBar: View {
     var fillColor: Color
     var showKnob: Bool
     var hitHeight: CGFloat = 22
+    /// VoiceOver label and spoken value — without these the bar is an unlabelled,
+    /// unoperable blob, which is what both the seek and volume controls were.
+    var accessibilityLabel: LocalizedStringKey
+    var accessibilityValue: String
+    /// How far one VoiceOver increment/decrement moves the bar.
+    var step: Double = 0.05
     var onScrub: (Double) -> Void
     var onCommit: (Double) -> Void
 
@@ -619,6 +640,17 @@ struct DraggableBar: View {
             )
         }
         .frame(height: hitHeight)
+        .accessibilityElement()
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityValue(accessibilityValue)
+        .accessibilityAdjustableAction { direction in
+            let clamped = Swift.min(Swift.max(fraction, 0), 1)
+            switch direction {
+            case .increment: onCommit(Swift.min(clamped + step, 1))
+            case .decrement: onCommit(Swift.max(clamped - step, 0))
+            @unknown default: break
+            }
+        }
     }
 
     /// Drag position → 0…1, or nil when the bar has no width to divide by.

@@ -77,7 +77,7 @@ struct AlbumGridView: View {
             Spacer(minLength: 0)
 
             if !filtered.isEmpty {
-                Text("\(filtered.count) album\(filtered.count == 1 ? "" : "s")")
+                Text(Counts.albums(filtered.count))
                     .font(.system(size: 10.5))
                     .foregroundStyle(Theme.dim)
             }
@@ -204,9 +204,26 @@ struct AlbumGridView: View {
             app.playAlbum(album)
         }
         .help(album.name)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(album.name)
+        .accessibilityValue(accessibilityDescription(album, playing: playing))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { app.playAlbum(album) }
     }
 
-    private func message(_ text: String) -> some View {
+    /// Spoken alongside the album name: track count, disc count, and whether this
+    /// is the album currently playing (the grid conveys that with a border and a
+    /// badge, neither of which VoiceOver can see).
+    private func accessibilityDescription(_ album: Album, playing: Bool) -> String {
+        var parts: [String] = []
+        let count = album.trackURLs.count
+        parts.append(Counts.tracks(count))
+        if album.isMultiDisc { parts.append("\(album.discs.count) discs") }
+        if playing { parts.append("now playing") }
+        return parts.joined(separator: ", ")
+    }
+
+    private func message(_ text: LocalizedStringKey) -> some View {
         Text(text)
             .font(.system(size: 13))
             .foregroundStyle(Theme.muted)

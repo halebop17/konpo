@@ -1,0 +1,128 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "#": {},
+    "%@. %@": {},
+    "%lld": {},
+    "%lld albums": {
+      "comment": "Album count in the album grid toolbar",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld album"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld albums"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld tracks": {
+      "comment": "Track count, spoken by VoiceOver",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld track"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld tracks"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "2nd accent": {},
+    "ALBUM": {},
+    "ARTIST": {},
+    "Accent color": {},
+    "Add Folder to Playlist": {},
+    "Add to Playlist": {},
+    "Album Art": {},
+    "Albums": {},
+    "Audio engine wouldn't start": {},
+    "Can't play %@": {},
+    "Cancel": {},
+    "Choose Preset Folder…": {},
+    "Couldn't save playlists: %@": {},
+    "Create": {},
+    "Delete Playlist": {},
+    "Enter a name for the new playlist.": {},
+    "Find Albums": {},
+    "Folders": {},
+    "Hide folder tree": {},
+    "Highlights the playing track, selections, and controls.": {},
+    "Large": {},
+    "Loading albums…": {},
+    "Marks the keyboard-focus edge when the track list is focused (the folder list uses the primary accent).": {},
+    "Medium": {},
+    "Name": {},
+    "New Playlist": {},
+    "New Playlist from Folder…": {},
+    "New Playlist…": {},
+    "New playlist": {},
+    "Next Track": {},
+    "Next track": {},
+    "No albums here": {},
+    "No audio files": {},
+    "No folder open": {},
+    "No matches": {},
+    "No playlists": {},
+    "Open Folder…": {},
+    "Open Folder…  ⌘O": {},
+    "Open album art full size": {},
+    "Pause": {},
+    "Play": {},
+    "Play Selected": {},
+    "Play an album to see its tracks": {},
+    "Playback": {},
+    "Playback position": {},
+    "Playlist is empty": {},
+    "Playlists": {},
+    "Previous Track": {},
+    "Previous track": {},
+    "Refresh": {},
+    "Remove from Playlist": {},
+    "Right-click a track →\nAdd to Playlist": {},
+    "Search": {},
+    "Seek Backward": {},
+    "Seek Forward": {},
+    "Select a folder": {},
+    "Select a playlist": {},
+    "Show folder tree": {},
+    "Show in Finder": {},
+    "Shows this folder's tracks": {},
+    "Small": {},
+    "TIME": {},
+    "TITLE": {},
+    "Tints the selected row in the track list.": {},
+    "Toggle album art panel (⌘B)": {},
+    "Toggle visualizer (⇧⌘V)": {},
+    "Track highlight": {},
+    "Use Built-in Presets": {},
+    "View": {},
+    "Visualizer": {},
+    "Volume": {}
+  },
+  "version": "1.0"
+}

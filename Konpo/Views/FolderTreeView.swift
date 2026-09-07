@@ -82,10 +82,13 @@ private struct FolderRowView: View {
             }
         } label: {
             HStack(spacing: 6) {
+                // Decorative: VoiceOver gets the same information from the value
+                // below, rather than reading out "▾".
                 Text(icon)
                     .font(.system(size: isLeaf ? 9 : 8))
                     .foregroundStyle(isSelected ? app.appearance.accent : Theme.dim)
                     .frame(width: 11)
+                    .accessibilityHidden(true)
                 Text(node.name)
                     .font(.system(size: Theme.fontSize, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(isSelected ? app.appearance.accent : Theme.text)
@@ -105,6 +108,16 @@ private struct FolderRowView: View {
         }
         .buttonStyle(.plain)
         .contextMenu { folderMenu }
+        .accessibilityLabel(node.name)
+        .accessibilityValue(accessibilityState)
+        .accessibilityHint("Shows this folder's tracks")
+    }
+
+    /// Folder / album-folder, and open or closed — all of which the row otherwise
+    /// conveys only through a ▸ ▾ ♪ glyph.
+    private var accessibilityState: String {
+        if isLeaf { return "Album folder" }
+        return node.isExpanded ? "Folder, expanded" : "Folder, collapsed"
     }
 
     @ViewBuilder private var folderMenu: some View {

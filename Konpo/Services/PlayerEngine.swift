@@ -91,7 +91,7 @@ final class PlayerEngine {
         generation += 1
         let gen = generation
         guard let file = try? AVAudioFile(forReading: url) else {
-            onError?("Can't play \(url.lastPathComponent)")
+            onError?(String(localized: "Can't play \(url.lastPathComponent)"))
             stop()
             return false
         }
@@ -113,7 +113,7 @@ final class PlayerEngine {
         do {
             if !engine.isRunning { try engine.start() }
         } catch {
-            onError?("Audio engine wouldn't start")
+            onError?(String(localized: "Audio engine wouldn't start"))
             stop()
             return false
         }
