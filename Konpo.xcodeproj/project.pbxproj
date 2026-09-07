@@ -263,7 +263,7 @@
 				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Konpo needs access to play music stored on your Desktop.";
 				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "Konpo needs access to play music stored in your Documents folder.";
 				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Konpo needs access to play music stored in your Downloads folder.";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Denis Scholvien. All rights reserved.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSRemovableVolumesUsageDescription = "Konpo needs access to play music stored on external drives.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -292,7 +292,7 @@
 				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Konpo needs access to play music stored on your Desktop.";
 				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "Konpo needs access to play music stored in your Documents folder.";
 				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "Konpo needs access to play music stored in your Downloads folder.";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 Denis Scholvien. All rights reserved.";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSRemovableVolumesUsageDescription = "Konpo needs access to play music stored on external drives.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
