@@ -74,14 +74,27 @@ echo "==> Team: $TEAM_ID"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD="$ROOT/build"
+DIST="$ROOT/dist"
 ARCHIVE="$BUILD/Konpo.xcarchive"
 EXPORT="$BUILD/export"
 APP="$EXPORT/Konpo.app"
-DMG="$BUILD/Konpo.dmg"
 
-echo "==> Cleaning $BUILD"
+# Version comes from the project so the artifact name can never drift from what
+# is actually built. dist/ is where the shipped 1.0 lives; build/ stays scratch.
+VERSION="$(xcodebuild -project "$ROOT/Konpo.xcodeproj" -target Konpo \
+    -showBuildSettings 2>/dev/null \
+    | awk -F' = ' '/ MARKETING_VERSION =/ { print $2; exit }' | tr -d '[:space:]')"
+[[ -n "$VERSION" ]] || { echo "Could not read MARKETING_VERSION from the project" >&2; exit 1; }
+DMG="$DIST/Konpo-$VERSION.dmg"
+
+echo "==> Building Konpo $VERSION"
 rm -rf "$BUILD"
-mkdir -p "$BUILD"
+mkdir -p "$BUILD" "$DIST"
+
+if [[ -e "$DMG" && -z "${OVERWRITE:-}" ]]; then
+    echo "$DMG already exists. Bump MARKETING_VERSION, or re-run with OVERWRITE=1." >&2
+    exit 1
+fi
 
 echo "==> Archiving"
 xcodebuild archive \
@@ -143,7 +156,18 @@ echo "    hardened runtime: on, Developer ID: present, timestamped"
 echo "==> Building DMG"
 # Notarizing the DMG (rather than a zip) means the thing users download is the
 # stapled artifact, so it verifies even offline.
-hdiutil create -volname "Konpo" -srcfolder "$APP" -ov -format UDZO "$DMG"
+# hdiutil intermittently fails with "Resource busy" immediately after the
+# export, while Spotlight and LaunchServices still have the freshly written
+# bundle open. It succeeds on a retry, so don't fail the whole release for it.
+for attempt in 1 2 3; do
+    if hdiutil create -volname "Konpo" -srcfolder "$APP" -ov -format UDZO "$DMG"; then
+        break
+    fi
+    [[ $attempt -lt 3 ]] || { echo "hdiutil create failed after 3 attempts" >&2; exit 1; }
+    echo "    hdiutil busy, retrying in 5s..."
+    sleep 5
+done
+
 codesign --sign "$DEVELOPER_ID" --timestamp "$DMG"
 
 echo "==> Submitting for notarization (this usually takes a few minutes)"
