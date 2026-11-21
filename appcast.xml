@@ -1,0 +1,40 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Konpo</title>
+        <item>
+            <title>1.2</title>
+            <pubDate>Wed, 18 Nov 2026 13:44:31 +0700</pubDate>
+            <sparkle:version>3</sparkle:version>
+            <sparkle:shortVersionString>1.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>What&#x27;s new in Konpo 1.2</h2>
+<p><b>Keyboard</b></p>
+<ul>
+<li><b>J</b> — Jump to file: type a few letters of any track in your music folder and press Return to play it.</li>
+<li><b>Q / ⇧Q</b> — add the selected track, folder or album to <b>Up Next</b>, or play it next. Up Next shows in the art panel; drag to reorder.</li>
+<li><b>S / R</b> — shuffle and repeat (off / all / one).</li>
+<li><b>T</b> — show time remaining instead of track length (or click the time).</li>
+<li><b>⇧⌘R</b> — reveal the selected track, folder or album in Finder.</li>
+<li><b>Winamp keys</b> — turn on Z X C V B for previous / play / pause / stop / next in Settings.</li>
+</ul>
+<p><b>Winamp tribute</b></p>
+<ul>
+<li><b>Mini player (⌥⌘M)</b> — a slim floating bar with a scrolling title.</li>
+<li><b>Equalizer (⇧⌘E)</b> — 10 bands, presets, and your own saved presets.</li>
+<li><b>Spectrum</b> — optional little analyzer bars next to the title (click for a scope).</li>
+</ul>
+<p><b>For music kept as files</b></p>
+<ul>
+<li><b>ReplayGain</b> — evens out loudness using the tags already in your files, by track or album.</li>
+<li><b>CUE sheets</b> — single-file albums with a .cue show as separate tracks, played gaplessly.</li>
+<li><b>New music shows up on its own</b> — Konpo watches your music folder for changes.</li>
+<li><b>M3U playlists</b> — import and export.</li>
+<li><b>Picks up where you left off</b> — reopens your last track at the same spot, paused.</li>
+</ul>
+<p>Settings now has Appearance, Playback and Updates tabs.</p>
+]]></description>
+            <enclosure url="https://github.com/halebop17/konpo/releases/download/1.2/Konpo-1.2.dmg" length="5908350" type="application/octet-stream" sparkle:edSignature="9AzDiQVawe7oDpRGXiwjbA4Oqcz6piEe82JdmNmsu2bgrJ7lNdwkXWyclN1nWf+Q5Sl0bgHbsP3XKXLI+OwHBw=="/>
+        </item>
+    </channel>
+</rss>
